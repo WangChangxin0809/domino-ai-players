@@ -1,0 +1,3375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>墨西哥火车多米诺 — AI拟人化玩家</title>
+</head>
+<body>
+<script>
+var DominoApp = {};
+</script>
+<script>
+// === DominoConfig ===
+// 墨西哥火车多米诺 — 全局配置与数据定义
+
+const DominoConfig = (function() {
+  "use strict";
+
+  // ============================================================================
+  // 常量
+  // ============================================================================
+  var TILE_RANGE = 9;
+  var TOTAL_TILES = 55;
+  var HAND_SIZE = 10;
+  var PLAYER_COUNT = 4;
+  var TARGET_SCORE = 100;
+  var BONEYARD_START = 15;
+
+  // ============================================================================
+  // 骨牌生成
+  // ============================================================================
+  function generateTiles() {
+    var tiles = [];
+    for (var a = 0; a <= TILE_RANGE; a++) {
+      for (var b = a; b <= TILE_RANGE; b++) {
+        tiles.push([a, b]);
+      }
+    }
+    return tiles;
+  }
+
+  // ============================================================================
+  // 玩家配置
+  // ============================================================================
+  var PLAYERS = [
+    { index: 0, name: "你", type: "human", personality: "human", emoji: "🧑", color: "#4fc3f7" },
+    { index: 1, name: "老稳", type: "ai", personality: "conservative", emoji: "🐢", color: "#81c784" },
+    { index: 2, name: "小冲", type: "ai", personality: "aggressive", emoji: "🔥", color: "#e57373" },
+    { index: 3, name: "大悲大喜", type: "ai", personality: "emotional", emoji: "🎭", color: "#ffb74d" }
+  ];
+
+  // ============================================================================
+  // 个性配置
+  // ============================================================================
+
+  // --- 保守型 ---
+  var conservativeWeights = {
+    d1_ownTrain: 0.40,
+    d2_mexican: 0.10,
+    d3_block: 0.05,
+    d4_pipRisk: 0.25,
+    d5_diversity: 0.10,
+    d6_empty: 0.05,
+    d7_double: 0.00,
+    d8_selfBlock: 0.05
+  };
+
+  var conservativeMessages = {
+    on_good_play: [
+      "这一步，经过了深思熟虑。",
+      "稳扎稳打，不急。",
+      "这步棋还不错。",
+      "按计划进行。",
+      "从容应对。"
+    ],
+    on_draw: [
+      "摸一张试试。",
+      "伺机而动。",
+      "不急，慢慢来。",
+      "留得青山在。",
+      "稳中求胜。"
+    ],
+    on_pass: [
+      "过一手也好。",
+      "宁可不过，不可躁进。",
+      "以退为进。",
+      "此时不必勉强。",
+      "稳住就是胜利。"
+    ],
+    on_double: [
+      "双牌在手，且行且珍惜。",
+      "放一个双牌。",
+      "这把稳了。",
+      "双重出击。",
+      "先拿下这个双牌。"
+    ],
+    on_block_other: [
+      "封锁成功。",
+      "料敌先机。",
+      "截断你的路。",
+      "他跑不了了。",
+      "以守为攻。"
+    ],
+    on_blocked: [
+      "意料之中的阻力。",
+      "有备无患。",
+      "不妨事。",
+      "从容应对。",
+      "换个方向便是。"
+    ],
+    on_win_round: [
+      "胜败乃常事，不失本心。",
+      "步步为营，水到渠成。",
+      "这一局拿下了。",
+      "稳中求胜。",
+      "大功告成。"
+    ],
+    on_lose_round: [
+      "下次再来。",
+      "胜不骄败不馁。",
+      "一时的失利而已。",
+      "总结经验。",
+      "来日方长。"
+    ],
+    on_near_victory: [
+      "胜利就在前方。",
+      "最后一搏。",
+      "不要大意。",
+      "守住优势。",
+      "终点不远了。"
+    ],
+    on_draw_useful: [
+      "正中下怀。",
+      "这牌来得正好。",
+      "如虎添翼。",
+      "资源在手。",
+      "不愁没法了。"
+    ],
+    on_draw_useless: [
+      "暂时用不上。",
+      "耐心等待机会。",
+      "留着也是储备。",
+      "且放一旁。",
+      "终有用武之地。"
+    ]
+  };
+
+  // --- 冒险型 ---
+  var aggressiveWeights = {
+    d1_ownTrain: 0.10,
+    d2_mexican: 0.05,
+    d3_block: 0.30,
+    d4_pipRisk: 0.05,
+    d5_diversity: 0.05,
+    d6_empty: 0.30,
+    d7_double: 0.15,
+    d8_selfBlock: 0.00
+  };
+
+  var aggressiveMessages = {
+    on_good_play: [
+      "闪电出击！",
+      "看你怎么办！",
+      "就是这样！",
+      "一鼓作气！",
+      "根本没在怕的！"
+    ],
+    on_draw: [
+      "再来一张！",
+      "手气不能停！",
+      "拼一把！",
+      "赌博时间！",
+      "给我来张好的！"
+    ],
+    on_pass: [
+      "让你跑一回。",
+      "侥幸而已。",
+      "这不算什么。",
+      "过吧过吧。",
+      "下次没这么好运。"
+    ],
+    on_double: [
+      "接招吧你！",
+      "双倍奉还！",
+      "火力全开！",
+      "这个双牌必须出！",
+      "压场了！"
+    ],
+    on_block_other: [
+      "跑不掉了吧！",
+      "封锁线已完成。",
+      "断了你的路。",
+      "哈哈，原地踏步吧你！",
+      "束手就擒！"
+    ],
+    on_blocked: [
+      "雕虫小技。",
+      "不过如此。",
+      "正面突破就是。",
+      "挡不住我的。",
+      "这点障碍算什么。"
+    ],
+    on_win_round: [
+      "势不可挡！",
+      "赢麻了！",
+      "毫无悬念！",
+      "轻松拿下！",
+      "就这？"
+    ],
+    on_lose_round: [
+      "失误而已，下把赢回来。",
+      "不服再来！",
+      "让你一局无妨。",
+      "运气罢了。",
+      "胜败常事，笑到最后的才是赢家。"
+    ],
+    on_near_victory: [
+      "快了快了！",
+      "准备庆祝！",
+      "胜利触手可及！",
+      "最后一击！",
+      "冲啊！"
+    ],
+    on_draw_useful: [
+      "天助我也！",
+      "完美！",
+      "正缺这个！",
+      "好牌到位！",
+      "来得好不如来得巧！"
+    ],
+    on_draw_useless: [
+      "废牌一张！",
+      "运气真背！",
+      "罢了罢了。",
+      "下张一定行。",
+      "攒人品中。"
+    ]
+  };
+
+  // --- 情绪型 ---
+  var emotionalWeightsBase = {
+    d1_ownTrain: 0.20,
+    d2_mexican: 0.15,
+    d3_block: 0.15,
+    d4_pipRisk: 0.15,
+    d5_diversity: 0.10,
+    d6_empty: 0.15,
+    d7_double: 0.05,
+    d8_selfBlock: 0.05
+  };
+
+  var emotionalMoodSensitivities = {
+    s1_ownTrain: 0.25,
+    s2_mexican: 0.20,
+    s3_block: -0.30,
+    s4_pipRisk: 0.30,
+    s5_diversity: 0.15,
+    s6_empty: 0.20,
+    s7_double: -0.25,
+    s8_selfBlock: 0.30
+  };
+
+  var emotionalMessages = {
+    on_good_play: {
+      positive: [
+        "这步走得漂亮！✨",
+        "神来之笔！",
+        "今天状态真好！✨",
+        "感觉棒极了！",
+        "意料之外的妙招！"
+      ],
+      negative: [
+        "还行吧。",
+        "也就那样。",
+        "一般操作。",
+        "凑合能用。",
+        "勉勉强强。"
+      ]
+    },
+    on_draw: {
+      positive: [
+        "摸一张试试手气！",
+        "期待好运降临！",
+        "好的开始！",
+        "信手拈来！",
+        "抽牌的感觉真好！"
+      ],
+      negative: [
+        "烦死了...又要摸牌。",
+        "这什么时候是个头。",
+        "随便摸一张吧。",
+        "麻了。",
+        "不想摸了..."
+      ]
+    },
+    on_pass: {
+      positive: [
+        "过一手让你一让~ 😊",
+        "礼尚往来嘛！",
+        "我这叫风度！",
+        "让让更健康！",
+        "给你放个水而已。"
+      ],
+      negative: [
+        "居然过不了...😤",
+        "这什么运气啊😤",
+        "烦！",
+        "我太难了！",
+        "自闭了。"
+      ]
+    },
+    on_double: {
+      positive: [
+        "双牌！大展神威！🎉",
+        "双倍的力量！",
+        "天赐良机！双牌！",
+        "好耶！出双牌！",
+        "双牌在手，天下我有！"
+      ],
+      negative: [
+        "又是双牌...压力大。",
+        "这双牌我可能搞不定。",
+        "别给我双牌了😭",
+        "好烦，又是双牌。",
+        "能不能换一张。"
+      ]
+    },
+    on_block_other: {
+      positive: [
+        "卡住你了！😁",
+        "嘿嘿，别怪我哦~",
+        "完美封锁！",
+        "抱歉啦，自己的路要紧！",
+        "不好意思，这一步我必须走！"
+      ],
+      negative: [
+        "卡住你了又怎样。",
+        "随便走一步。",
+        "不是故意挡你的。",
+        "别恨我...",
+        "我也是没办法。"
+      ]
+    },
+    on_blocked: {
+      positive: [
+        "没关系，换个思路~",
+        "小意思，再来！",
+        "还早呢，不慌！",
+        "这点事不算啥。",
+        "乐观一点，总有办法！"
+      ],
+      negative: [
+        "太过分了😡",
+        "为什么堵我...",
+        "还能不能好了！",
+        "气死我了！😤",
+        "这还有公平可言吗？！"
+      ]
+    },
+    on_win_round: {
+      positive: [
+        "赢啦！🏆",
+        "太开心了！🎉",
+        "我做到了！",
+        "胜利的喜悦！",
+        "今天是我的幸运日！🌟"
+      ],
+      negative: [
+        "总算赢了...",
+        "赢一局不容易。",
+        "艰难取胜。",
+        "来得太晚了些。",
+        "无所谓了吧。"
+      ]
+    },
+    on_lose_round: {
+      positive: [
+        "没事，下把赢回来！",
+        "享受过程就好！",
+        "重在参与！",
+        "笑对失败！😊",
+        "输赢乃兵家常事！"
+      ],
+      negative: [
+        "又是一局白打...",
+        "不玩了！！",
+        "这也太悲催了吧😭",
+        "难过死了...",
+        "为什么输的总是我！"
+      ]
+    },
+    on_near_victory: {
+      positive: [
+        "胜利在望！加油！🎉",
+        "就差一点了！",
+        "全力以赴！",
+        "这一刻等了很久！",
+        "冲啊！胜利！"
+      ],
+      negative: [
+        "别高兴太早...",
+        "万一又翻车呢。",
+        "不敢相信。",
+        "希望别出意外。",
+        "紧张死了..."
+      ]
+    },
+    on_draw_useful: {
+      positive: [
+        "运气爆棚！🎉",
+        "正合我意！",
+        "完美抽牌！",
+        "老天爷在帮我！",
+        "这就是缘分！✨"
+      ],
+      negative: [
+        "还算凑合。",
+        "勉强能用。",
+        "聊胜于无。",
+        "好吧，不挑。",
+        "总比没有强。"
+      ]
+    },
+    on_draw_useless: {
+      positive: [
+        "白费力气。",
+        "手气不佳呢。",
+        "风水轮流转。",
+        "呃...再试试吧。",
+        "下回合转运！"
+      ],
+      negative: [
+        "怎么又是烂牌！😤",
+        "这叫什么事！",
+        "有毒吧这牌堆！",
+        "气到裂开！",
+        "绷不住了😭"
+      ]
+    }
+  };
+
+  var thinkDelays = {
+    conservative: { min: 800, max: 1500 },
+    aggressive: { min: 400, max: 800 },
+    emotional: { min: 600, max: 1200 }
+  };
+
+  var PERSONALITIES = {
+    conservative: {
+      id: "conservative",
+      name: "保守型",
+      emoji: "🐢",
+      thinkDelay: thinkDelays.conservative,
+      weights: conservativeWeights,
+      messagePools: conservativeMessages
+    },
+    aggressive: {
+      id: "aggressive",
+      name: "冒险型",
+      emoji: "🔥",
+      thinkDelay: thinkDelays.aggressive,
+      weights: aggressiveWeights,
+      messagePools: aggressiveMessages
+    },
+    emotional: {
+      id: "emotional",
+      name: "情绪型",
+      emoji: "🎭",
+      thinkDelay: thinkDelays.emotional,
+      weightsBase: emotionalWeightsBase,
+      moodSensitivities: emotionalMoodSensitivities,
+      messagePools: emotionalMessages
+    }
+  };
+
+  // ============================================================================
+  // 情绪事件增量
+  // ============================================================================
+  var MOOD_DELTAS = {
+    play_double: 0.15,
+    satisfy_double: 0.10,
+    open_other_train: 0.12,
+    draw_useful: 0.08,
+    draw_useless: -0.10,
+    own_train_blocked: -0.15,
+    others_play_on_mine: -0.20,
+    other_player_wins_round: -0.25,
+    ai_wins_round: 0.50,
+    hand_below_3: 0.10
+  };
+
+  // ============================================================================
+  // 情绪颜文字映射
+  // ============================================================================
+  var MOOD_EMOJI_MAP = [
+    { threshold: 0.5, emoji: "😄" },
+    { threshold: 0.2, emoji: "😊" },
+    { threshold: -0.2, emoji: "😐" },
+    { threshold: -0.5, emoji: "😤" }
+  ];
+
+  function getMoodEmoji(mood) {
+    if (mood > 0.5)       return "😄";
+    if (mood > 0.2)       return "😊";
+    if (mood > -0.2)      return "😐";
+    if (mood > -0.5)      return "😤";
+    else                   return "😡";
+  }
+
+  // ============================================================================
+  // 火车 ID 常量
+  // ============================================================================
+  var TRAIN_IDS = {
+    PERSONAL_TRAINS: ["p0", "p1", "p2", "p3"],
+    MEXICAN_TRAIN: "mexican",
+    ALL_TRAINS: ["p0", "p1", "p2", "p3", "mexican"]
+  };
+
+  // ============================================================================
+  // 公开 API
+  // ============================================================================
+  return {
+    // 常量
+    TILE_RANGE: TILE_RANGE,
+    TOTAL_TILES: TOTAL_TILES,
+    HAND_SIZE: HAND_SIZE,
+    PLAYER_COUNT: PLAYER_COUNT,
+    TARGET_SCORE: TARGET_SCORE,
+    BONEYARD_START: BONEYARD_START,
+
+    // 方法
+    generateTiles: generateTiles,
+    getMoodEmoji: getMoodEmoji,
+
+    // 数据
+    PLAYERS: PLAYERS,
+    PERSONALITIES: PERSONALITIES,
+    MOOD_DELTAS: MOOD_DELTAS,
+    MOOD_EMOJI_MAP: MOOD_EMOJI_MAP,
+    TRAIN_IDS: TRAIN_IDS
+  };
+
+})();
+</script>
+<script>
+// === DominoState ===
+// 墨西哥火车多米诺 — 游戏状态管理
+
+var DominoState = (function() {
+  "use strict";
+
+  // 依赖 DominoConfig（需先加载 config.js）
+  var C = (typeof DominoConfig !== "undefined") ? DominoConfig : null;
+
+  // ============================================================================
+  // 骨牌工具函数
+  // ============================================================================
+
+  /** 返回骨牌的字符串 key，如 [3,7] → "3-7" */
+  function tileKey(tile) {
+    return tile[0] + "-" + tile[1];
+  }
+
+  /** 返回骨牌的点数总和 */
+  function pips(tile) {
+    return tile[0] + tile[1];
+  }
+
+  /** 是否为双牌（两端相同） */
+  function isDouble(tile) {
+    return tile[0] === tile[1];
+  }
+
+  /** 骨牌的某一端是否匹配指定值 */
+  function matches(tile, value) {
+    return tile[0] === value || tile[1] === value;
+  }
+
+  /** 返回骨牌中不匹配 matchValue 的另一端值；
+   *  如果两端都匹配，返回 —1；如果都不匹配，返回 —1。 */
+  function otherEnd(tile, matchValue) {
+    if (tile[0] === matchValue && tile[1] === matchValue) return -1;
+    if (tile[0] === matchValue) return tile[1];
+    if (tile[1] === matchValue) return tile[0];
+    return -1;
+  }
+
+  /** Fisher——Yates 洗牌算法，返回新数组 */
+  function shuffleTiles(tiles) {
+    var arr = tiles.slice();
+    var i, j, tmp;
+    for (i = arr.length - 1; i > 0; i--) {
+      j = Math.floor(Math.random() * (i + 1));
+      tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  // ============================================================================
+  // 数据创建函数
+  // ============================================================================
+
+  /** 创建一个火车对象 */
+  function createTrain(id, ownerIndex) {
+    return {
+      id: id,
+      tiles: [],
+      openValue: null,
+      isPublic: false,
+      ownerIndex: (ownerIndex !== undefined) ? ownerIndex : null,
+      hasUnsatisfiedDouble: false,
+      unsatisfiedDoubleValue: null
+    };
+  }
+
+  /** 根据玩家配置创建一个 Player 对象 */
+  function createPlayer(config, index) {
+    // config 来自 DominoConfig.PLAYERS[index]
+    if (config.index !== index) {
+      console.warn("createPlayer: config.index 与参数 index 不一致，以参数为准。");
+    }
+    return {
+      index: index,
+      name: config.name,
+      type: config.type,
+      personality: config.personality,
+      emoji: config.emoji,
+      color: config.color,
+      hand: [],
+      scoreHistory: [],
+      totalScore: 0
+    };
+  }
+
+  /** 创建一个 AI 状态对象 */
+  function createAIState() {
+    return {
+      mood: 0.0,
+      moodHistory: [],
+      lastEventType: ""
+    };
+  }
+
+  // ============================================================================
+  // 主游戏状态创建
+  // ============================================================================
+
+  /** 创建空游戏状态（不含 initNewGame 的初始化过程） */
+  function createGameState() {
+    return {
+      phase: "idle",
+      players: [],
+      trains: [],
+      boneyard: [],
+      roundNumber: 1,
+      currentPlayerIndex: 0,
+      engineValue: null,
+      pendingDoublePlayer: null,
+      pendingDoubleTrainId: null,
+      selectedTileIndex: null,
+      selectedTrainId: null,
+      eventLog: [],
+      aiStates: [],
+      gameOver: false,
+      winner: null
+    };
+  }
+
+  /** 初始化一局全新游戏 */
+  function initNewGame() {
+    if (!C) {
+      throw new Error("DominoState.initNewGame: DominoConfig 未加载，请先引入 config.js");
+    }
+
+    // 1. 生成并洗牌
+    var allTiles = C.generateTiles();
+    var shuffled = shuffleTiles(allTiles);
+
+    // 2. 创建玩家并发牌（每人 HAND_SIZE 张）
+    var players = [];
+    var aiStates = [];
+    var playerCount = C.PLAYER_COUNT;
+    var handSize = C.HAND_SIZE;
+
+    for (var i = 0; i < playerCount; i++) {
+      var cfg = C.PLAYERS[i];
+      var player = createPlayer(cfg, i);
+      // 从洗好的牌里取 handSize 张
+      var hand = shuffled.splice(0, handSize);
+      player.hand = hand;
+      players.push(player);
+
+      // 为 AI 玩家创建 AI 状态；人类玩家也占位但不会被使用
+      aiStates.push(createAIState());
+    }
+
+    // 3. 剩余的牌就是 boneyard
+    var boneyard = shuffled;
+
+    // 4. 找到引擎双牌（场上最大的双牌）和持有者
+    var engineValue = -1;
+    var engineOwnerIndex = 0;
+
+    for (var p = 0; p < players.length; p++) {
+      var handArr = players[p].hand;
+      for (var t = 0; t < handArr.length; t++) {
+        var tile = handArr[t];
+        if (isDouble(tile) && tile[0] > engineValue) {
+          engineValue = tile[0];
+          engineOwnerIndex = p;
+        }
+      }
+    }
+
+    if (engineValue === -1) {
+      throw new Error("initNewGame: 未在任何玩家手中找到双牌，无法确定引擎值。");
+    }
+
+    // 5. 创建五条火车
+    var personalIds = C.TRAIN_IDS.PERSONAL_TRAINS;
+    var trains = [];
+    for (var tr = 0; tr < personalIds.length; tr++) {
+      var tid = personalIds[tr];
+      var train = createTrain(tid, tr);
+      train.openValue = engineValue;
+      train.isPublic = false;
+      trains.push(train);
+    }
+    // 墨西哥火车
+    var mexicanTrain = createTrain(C.TRAIN_IDS.MEXICAN_TRAIN, null);
+    mexicanTrain.openValue = engineValue;
+    mexicanTrain.isPublic = true;
+    trains.push(mexicanTrain);
+
+    // 6. 构建游戏状态
+    var state = createGameState();
+    state.players = players;
+    state.trains = trains;
+    state.boneyard = boneyard;
+    state.roundNumber = 1;
+    state.currentPlayerIndex = engineOwnerIndex;
+    state.engineValue = engineValue;
+    state.aiStates = aiStates;
+    state.phase = "waiting_human";
+
+    // 如果引擎持有者是 AI，则 phase 应设为 ai_thinking
+    if (players[engineOwnerIndex].type === "ai") {
+      state.phase = "ai_thinking";
+    }
+
+    return state;
+  }
+
+  // ============================================================================
+  // 公开 API
+  // ============================================================================
+  return {
+    // 工具
+    tileKey: tileKey,
+    pips: pips,
+    isDouble: isDouble,
+    matches: matches,
+    otherEnd: otherEnd,
+    shuffleTiles: shuffleTiles,
+
+    // 工厂
+    createTrain: createTrain,
+    createPlayer: createPlayer,
+    createAIState: createAIState,
+    createGameState: createGameState,
+
+    // 初始化
+    initNewGame: initNewGame
+  };
+
+})();
+</script>
+<script>
+// === DominoEngine ===
+// Mexican Train Domino — Game Engine Module
+// Depends on: DominoConfig, DominoState (already loaded)
+
+const DominoEngine = (function() {
+
+  // ─── Tile Generation ───────────────────────────────────────────
+
+  /** Generate all 55 tiles for a double-9 domino set. */
+  function _generateAllTiles() {
+    const tiles = [];
+    for (let i = 0; i <= 9; i++) {
+      for (let j = i; j <= 9; j++) {
+        tiles.push([i, j]);
+      }
+    }
+    return tiles;
+  }
+
+  // ─── initRound ─────────────────────────────────────────────────
+
+  /**
+   * Reset state for a new round. Modifies the existing stateObj in place.
+   * - Shuffles and deals tiles to all players.
+   * - Finds the highest double across all hands as the engine.
+   * - Places the engine on the Mexican train.
+   * - Initializes train open values and flags.
+   */
+  function initRound(stateObj) {
+    const allTiles = DominoState.shuffleTiles(_generateAllTiles());
+    const { players, trains } = stateObj;
+
+    // Deal HAND_SIZE tiles to each player
+    const handSize = DominoConfig.HAND_SIZE;
+    for (let i = 0; i < players.length; i++) {
+      players[i].hand = allTiles.splice(0, handSize);
+    }
+
+    // Remaining tiles become the boneyard
+    stateObj.boneyard = allTiles.slice();
+
+    // Find the engine — the highest-value double across all hands
+    let bestDouble = null;
+    let bestValue = -1;
+    let enginePlayerIndex = -1;
+
+    for (let i = 0; i < players.length; i++) {
+      const hand = players[i].hand;
+      for (let tileIdx = 0; tileIdx < hand.length; tileIdx++) {
+        const tile = hand[tileIdx];
+        if (DominoState.isDouble(tile)) {
+          const val = tile[0];
+          if (val > bestValue) {
+            bestValue = val;
+            bestDouble = tile;
+            enginePlayerIndex = i;
+          }
+        }
+      }
+    }
+
+    // Remove engine tile from its owner's hand
+    if (enginePlayerIndex >= 0 && bestDouble) {
+      const engineHand = players[enginePlayerIndex].hand;
+      const engIdx = engineHand.findIndex(
+        t => t[0] === bestDouble[0] && t[1] === bestDouble[1]
+      );
+      if (engIdx >= 0) {
+        engineHand.splice(engIdx, 1);
+      }
+    }
+
+    stateObj.engineValue = bestValue;
+    stateObj.currentPlayerIndex = enginePlayerIndex;
+    stateObj.pendingDoublePlayer = null;
+    stateObj.pendingDoubleTrainId = null;
+
+    // Place the engine tile on the Mexican train
+    const mexicanTrain = trains.find(t => t.id === "mexican");
+    if (mexicanTrain && bestDouble) {
+      mexicanTrain.tiles = [bestDouble];
+    }
+
+    // Initialize all trains
+    for (const train of trains) {
+      train.openValue = bestValue;
+      train.hasUnsatisfiedDouble = false;
+      train.unsatisfiedDoubleValue = null;
+      if (train.id === "mexican") {
+        train.isPublic = true;
+        if (!train.tiles || train.tiles.length === 0) {
+          train.tiles = bestDouble ? [bestDouble] : [];
+        }
+      } else {
+        train.isPublic = false;
+        train.tiles = [];
+      }
+    }
+
+    // Set initial phase
+    stateObj.phase = _phaseForPlayer(players[enginePlayerIndex]);
+  }
+
+  // ─── getLegalMoves ─────────────────────────────────────────────
+
+  /**
+   * Returns all legal moves for a player as {tileIndex, tile, trainId, train}.
+   * Handles pending-double logic: the player who played the double MUST attempt
+   * to satisfy it on their extra turn; other players try to satisfy first,
+   * falling back to normal play if they cannot.
+   */
+  function getLegalMoves(stateObj, playerIndex) {
+    const { players, trains, pendingDoublePlayer, pendingDoubleTrainId } = stateObj;
+    const player = players[playerIndex];
+    const hand = player.hand;
+
+    // First pass: collect all valid (tile, train) pairs ignoring double restrictions
+    const rawMoves = [];
+
+    for (let tileIndex = 0; tileIndex < hand.length; tileIndex++) {
+      const tile = hand[tileIndex];
+
+      for (const train of trains) {
+        // Accessibility check
+        if (train.ownerIndex !== playerIndex && train.id !== "mexican" && !train.isPublic) {
+          continue;
+        }
+
+        // Blocked by the train's own unsatisfied double?
+        if (train.hasUnsatisfiedDouble && !DominoState.matches(tile, train.unsatisfiedDoubleValue)) {
+          continue;
+        }
+
+        // Must match the train's open value
+        if (!DominoState.matches(tile, train.openValue)) {
+          continue;
+        }
+
+        rawMoves.push({ tileIndex, tile, trainId: train.id, train });
+      }
+    }
+
+    // Apply pending-double restrictions
+    if (pendingDoublePlayer !== null && pendingDoubleTrainId !== null) {
+      const pendingTrain = trains.find(t => t.id === pendingDoubleTrainId);
+      const doubleValue = pendingTrain ? pendingTrain.unsatisfiedDoubleValue : null;
+
+      if (playerIndex === pendingDoublePlayer) {
+        // This player MUST satisfy their own double — only those moves permitted
+        return rawMoves.filter(
+          m => m.trainId === pendingDoubleTrainId && DominoState.matches(m.tile, doubleValue)
+        );
+      } else {
+        // Other players: try to satisfy the double first
+        const satisfyingMoves = rawMoves.filter(
+          m => m.trainId === pendingDoubleTrainId && DominoState.matches(m.tile, doubleValue)
+        );
+        if (satisfyingMoves.length > 0) {
+          return satisfyingMoves; // Must satisfy — only return these
+        }
+        // Cannot satisfy — return all moves (may be empty)
+      }
+    }
+
+    return rawMoves;
+  }
+
+  // ─── executePlay ───────────────────────────────────────────────
+
+  /**
+   * Execute a play action from a player's hand onto a train.
+   * Returns {tile, wasDouble, satisfiedDouble, handEmpty}.
+   */
+  function executePlay(stateObj, playerIndex, tileIndex, trainId) {
+    const { players, trains } = stateObj;
+    const player = players[playerIndex];
+    const train = trains.find(t => t.id === trainId);
+
+    // Remove tile from hand
+    const tile = player.hand.splice(tileIndex, 1)[0];
+
+    // Determine new open value
+    const newOpenValue = DominoState.otherEnd(tile, train.openValue);
+
+    // Record that we are satisfying a previously unsatisfied double
+    const wasSatisfying = train.hasUnsatisfiedDouble;
+
+    // Place tile on train
+    train.tiles.push(tile);
+    train.openValue = newOpenValue;
+
+    // Double logic
+    if (DominoState.isDouble(tile)) {
+      train.hasUnsatisfiedDouble = true;
+      train.unsatisfiedDoubleValue = tile[0];
+      stateObj.pendingDoublePlayer = playerIndex;
+      stateObj.pendingDoubleTrainId = trainId;
+      return {
+        tile: tile,
+        wasDouble: true,
+        satisfiedDouble: false,
+        handEmpty: player.hand.length === 0
+      };
+    }
+
+    // Satisfying a previous double (tile itself is not a double)
+    if (wasSatisfying) {
+      train.hasUnsatisfiedDouble = false;
+      train.unsatisfiedDoubleValue = null;
+      stateObj.pendingDoublePlayer = null;
+      stateObj.pendingDoubleTrainId = null;
+      return {
+        tile: tile,
+        wasDouble: false,
+        satisfiedDouble: true,
+        handEmpty: player.hand.length === 0
+      };
+    }
+
+    // Normal non-double play
+    return {
+      tile: tile,
+      wasDouble: false,
+      satisfiedDouble: false,
+      handEmpty: player.hand.length === 0
+    };
+  }
+
+  // ─── executeDraw ───────────────────────────────────────────────
+
+  /**
+   * Player draws from the boneyard. If the drawn tile can be legally played,
+   * it is automatically played. Otherwise it is added to the player's hand and
+   * the player's personal train is marked public.
+   * Returns {tile, played, ...playResult} or null if boneyard is empty.
+   */
+  function executeDraw(stateObj, playerIndex) {
+    const { players, trains } = stateObj;
+
+    if (stateObj.boneyard.length === 0) {
+      return null;
+    }
+
+    const tile = stateObj.boneyard.pop();
+    const player = players[playerIndex];
+
+    // Temporarily add tile to hand so getLegalMoves can find it
+    player.hand.push(tile);
+    const legalMoves = getLegalMoves(stateObj, playerIndex);
+    const tileMoves = legalMoves.filter(m => {
+      const t = m.tile;
+      return t[0] === tile[0] && t[1] === tile[1];
+    });
+
+    if (tileMoves.length > 0) {
+      // Remove the just-added tile so executePlay's splice uses the right index
+      player.hand.pop();
+      const tempIdx = player.hand.length; // append, then play from that index
+      player.hand.push(tile);
+      const playResult = executePlay(stateObj, playerIndex, tempIdx, tileMoves[0].trainId);
+      return {
+        tile: tile,
+        played: true,
+        wasDouble: playResult.wasDouble,
+        satisfiedDouble: playResult.satisfiedDouble,
+        trainId: tileMoves[0].trainId
+      };
+    }
+
+    // Cannot play — tile stays in hand, personal train becomes public
+    // (tile was already pushed, so leave it there)
+    const personalTrain = trains.find(t => t.ownerIndex === playerIndex && t.id !== "mexican");
+    if (personalTrain) {
+      personalTrain.isPublic = true;
+    }
+    return {
+      tile: tile,
+      played: false
+    };
+  }
+
+  // ─── executePass ───────────────────────────────────────────────
+
+  /**
+   * Player passes their turn. Their personal train is marked public (open
+   * for others to play on). Returns true.
+   */
+  function executePass(stateObj, playerIndex) {
+    const { trains } = stateObj;
+    const personalTrain = trains.find(t => t.ownerIndex === playerIndex && t.id !== "mexican");
+    if (personalTrain) {
+      personalTrain.isPublic = true;
+    }
+    return true;
+  }
+
+  // ─── advanceTurn ───────────────────────────────────────────────
+
+  /**
+   * Advance to the next player after the current turn.
+   * - If a double was just played (pendingDoublePlayer === currentPlayerIndex),
+   *   the same player gets an extra turn to satisfy it.
+   * - Otherwise, rotate to the next player.
+   */
+  function advanceTurn(stateObj) {
+    const { players, pendingDoublePlayer } = stateObj;
+
+    if (pendingDoublePlayer !== null && pendingDoublePlayer === stateObj.currentPlayerIndex) {
+      // Same player gets an extra turn — phase stays the same
+      return;
+    }
+
+    // Advance to next player
+    const nextIndex = (stateObj.currentPlayerIndex + 1) % players.length;
+    stateObj.currentPlayerIndex = nextIndex;
+    stateObj.phase = _phaseForPlayer(players[nextIndex]);
+  }
+
+  // ─── isRoundOver ───────────────────────────────────────────────
+
+  /**
+   * A round ends when any player runs out of tiles, OR when the boneyard is
+   * empty and no player has a legal move (stalemate).
+   */
+  function isRoundOver(stateObj) {
+    const { players } = stateObj;
+
+    // Any player with empty hand ends the round
+    for (const player of players) {
+      if (player.hand.length === 0) {
+        return true;
+      }
+    }
+
+    // Boneyard empty and no player can move
+    if (stateObj.boneyard.length === 0) {
+      for (let i = 0; i < players.length; i++) {
+        if (getLegalMoves(stateObj, i).length > 0) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  // ─── scoreRound ────────────────────────────────────────────────
+
+  /**
+   * Calculate and record round scores. Each player's score is the sum of
+   * pips on tiles remaining in their hand (0 for the player who emptied
+   * their hand). Pushes scores to each player's scoreHistory and totalScore.
+   * Returns an array of round scores keyed by player index.
+   */
+  function scoreRound(stateObj) {
+    const { players } = stateObj;
+    const roundScores = [];
+
+    for (let i = 0; i < players.length; i++) {
+      const hand = players[i].hand;
+      let score = 0;
+      for (const tile of hand) {
+        score += DominoState.pips(tile);
+      }
+      // Player with empty hand scores 0 (already handled — loop gives 0)
+      players[i].scoreHistory.push(score);
+      players[i].totalScore += score;
+      roundScores.push(score);
+    }
+
+    return roundScores;
+  }
+
+  // ─── isGameOver ────────────────────────────────────────────────
+
+  /**
+   * The game ends when any player's total score reaches or exceeds the
+   * target score (TARGET_SCORE from DominoConfig). Sets stateObj.gameOver
+   * and stateObj.winner (player with lowest total score).
+   */
+  function isGameOver(stateObj) {
+    const target = DominoConfig.TARGET_SCORE;
+    const { players } = stateObj;
+
+    for (const player of players) {
+      if (player.totalScore >= target) {
+        stateObj.gameOver = true;
+        // Winner is the player with the lowest total score
+        let bestPlayer = players[0];
+        for (let i = 1; i < players.length; i++) {
+          if (players[i].totalScore < bestPlayer.totalScore) {
+            bestPlayer = players[i];
+          }
+        }
+        stateObj.winner = bestPlayer;
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // ─── getWinner ─────────────────────────────────────────────────
+
+  /**
+   * Returns the player with the lowest total score, or null if scores
+   * are not yet available.
+   */
+  function getWinner(stateObj) {
+    const { players } = stateObj;
+    if (!players || players.length === 0) return null;
+
+    let best = players[0];
+    for (let i = 1; i < players.length; i++) {
+      if (players[i].totalScore < best.totalScore) {
+        best = players[i];
+      }
+    }
+    return best;
+  }
+
+  // ─── Internal Helpers ──────────────────────────────────────────
+
+  /**
+   * Determine the correct phase string for a player based on their type.
+   */
+  function _phaseForPlayer(player) {
+    if (!player) return "waiting_human";
+    if (player.type === "human") return "waiting_human";
+    return "ai_thinking";
+  }
+
+  // ─── Public API ────────────────────────────────────────────────
+
+  return {
+    initRound: initRound,
+    getLegalMoves: getLegalMoves,
+    executePlay: executePlay,
+    executeDraw: executeDraw,
+    executePass: executePass,
+    advanceTurn: advanceTurn,
+    isRoundOver: isRoundOver,
+    scoreRound: scoreRound,
+    isGameOver: isGameOver,
+    getWinner: getWinner
+  };
+
+})();
+</script>
+<script>
+// === DominoAI ===
+// 墨西哥火车多米诺 — AI 决策引擎
+// 为三种拟人性格（保守型、冒险型、情绪型）提供出牌策略、情绪系统与对话选择
+
+var DominoAI = (function() {
+  "use strict";
+
+  // ============================================================================
+  // 内部工具函数
+  // ============================================================================
+
+  /**
+   * 从 trainId 中提取玩家索引。 "p0" -> 0, "p1" -> 1, "mexican" -> -1
+   */
+  function _trainOwnerIndex(trainId) {
+    if (trainId === "mexican") return -1;
+    if (trainId && trainId[0] === "p") {
+      var idx = parseInt(trainId.substring(1), 10);
+      return isNaN(idx) ? -1 : idx;
+    }
+    return -1;
+  }
+
+  /**
+   * 限制值到 [min, max] 范围。
+   */
+  function _clamp(val, min, max) {
+    if (val < min) return min;
+    if (val > max) return max;
+    return val;
+  }
+
+  /**
+   * 获取火车当前开放端点值。若无牌则为 -1。
+   */
+  function _getTrainOpenValue(stateObj, trainId) {
+    var trains = stateObj.trains || [];
+    var train = null;
+    for (var t = 0; t < trains.length; t++) {
+      if (trains[t].id === trainId) { train = trains[t]; break; }
+    }
+    if (train) {
+      return train.openValue;
+    }
+    // 后备：从 train 的 tiles 推导
+    if (train && train.tiles && train.tiles.length > 0) {
+      return train.tiles[train.tiles.length - 1];
+    }
+    return -1;
+  }
+
+  /**
+   * 获取玩家当前 mood（情绪型专用）。不存在则初始化为 0。
+   */
+  function _getMood(stateObj, playerIndex) {
+    if (!stateObj.aiStates) {
+      stateObj.aiStates = [];
+    }
+    if (!stateObj.aiStates[playerIndex]) {
+      stateObj.aiStates[playerIndex] = { mood: 0.0, moodHistory: [], lastEventType: null };
+    }
+    return stateObj.aiStates[playerIndex].mood;
+  }
+
+  /**
+   * 获取玩家 aiStates 对象。不存在则初始化。
+   */
+  function _getAIState(stateObj, playerIndex) {
+    if (!stateObj.aiStates) {
+      stateObj.aiStates = [];
+    }
+    if (!stateObj.aiStates[playerIndex]) {
+      stateObj.aiStates[playerIndex] = { mood: 0.0, moodHistory: [], lastEventType: null };
+    }
+    return stateObj.aiStates[playerIndex];
+  }
+
+  // ============================================================================
+  // getEffectiveWeights
+  // ============================================================================
+
+  /**
+   * 获取当前有效的权重对象。
+   * - conservative / aggressive: 直接返回静态权重
+   * - emotional: 用 mood 调制基础权重
+   *
+   * @param {string}  personalityId - "conservative" | "aggressive" | "emotional"
+   * @param {number}  mood - 当前情绪值 [-1, 1]
+   * @returns {object} { d1_ownTrain, d2_mexican, ..., d8_selfBlock }
+   */
+  function getEffectiveWeights(personalityId, mood) {
+    var cfg = DominoConfig.PERSONALITIES[personalityId];
+    if (!cfg) {
+      // 默认退回保守型
+      return DominoConfig.PERSONALITIES.conservative.weights;
+    }
+
+    // 非情绪型：静态权重
+    if (personalityId !== "emotional") {
+      return cfg.weights;
+    }
+
+    // 情绪型：根据 mood 调制
+    var base = cfg.weightsBase;
+    var sens = cfg.moodSensitivities;
+    var clampedMood = _clamp(mood || 0, -1.0, 1.0);
+
+    // 维度名 -> 敏感度键名映射
+    var dimToSensKey = {
+      d1_ownTrain:   "s1_ownTrain",
+      d2_mexican:    "s2_mexican",
+      d3_block:      "s3_block",
+      d4_pipRisk:    "s4_pipRisk",
+      d5_diversity:  "s5_diversity",
+      d6_empty:      "s6_empty",
+      d7_double:     "s7_double",
+      d8_selfBlock:  "s8_selfBlock"
+    };
+
+    var effective = {};
+    var dims = Object.keys(base);
+    for (var i = 0; i < dims.length; i++) {
+      var d = dims[i];
+      var sensitivity = sens[dimToSensKey[d]] || 0;
+      var w = base[d] * (1.0 + clampedMood * sensitivity);
+      effective[d] = _clamp(w, 0.0, 1.0);
+    }
+    return effective;
+  }
+
+  // ============================================================================
+  // scoreMove
+  // ============================================================================
+
+  /**
+   * 为一个合法出牌打分（8 维度加权求和）。
+   *
+   * @param {object} stateObj   - 完整游戏状态
+   * @param {number} playerIndex - AI 玩家索引
+   * @param {object} move       - { tileIndex, tile, trainId }
+   * @param {object} weights    - getEffectiveWeights 的返回值
+   * @returns {number} 综合得分
+   */
+  function scoreMove(stateObj, playerIndex, move, weights) {
+    var hand = stateObj.hands[playerIndex];
+    var tile = move.tile;
+    var trainId = move.trainId;
+    var handSizeBefore = hand.length;
+
+    // 此移动后的剩余手牌（排除当前 tile）
+    var remainingHand = [];
+    for (var i = 0; i < hand.length; i++) {
+      if (i !== move.tileIndex) {
+        remainingHand.push(hand[i]);
+      }
+    }
+    var handSizeAfter = remainingHand.length;
+
+    // ---- 获取火车当前开放值 ----
+    var openValue = _getTrainOpenValue(stateObj, trainId);
+
+    /**
+     * 辅助：获取 tile 的 pip 端点值列表（不含匹配值）
+     * 如需查找与 openValue 匹配并得到新开放值，使用 engine 侧的匹配逻辑。
+     * 这里用 DominoState.otherEnd 计算匹配端对应的另一端。
+     */
+    var newOpenValue = openValue;
+    if (openValue >= 0 && DominoState.matches(tile, openValue)) {
+      newOpenValue = DominoState.otherEnd(tile, openValue);
+    }
+
+    // ---- d1_ownTrain: 目标自己的火车 +1.0, 墨西哥火车 0.0, 其他人火车 -0.5 ----
+    var d1_ownTrain = 0.0;
+    if (trainId === "p" + playerIndex) {
+      d1_ownTrain = 1.0;
+    } else if (trainId === "mexican") {
+      d1_ownTrain = 0.0;
+    } else {
+      d1_ownTrain = -0.5;
+    }
+
+    // ---- d2_mexican: 放到墨西哥火车 +1.0 ----
+    var d2_mexican = (trainId === "mexican") ? 1.0 : 0.0;
+
+    // ---- d3_block: 卡其他玩家火车 ----
+    var d3_block = 0.0;
+    var ownerIdx = _trainOwnerIndex(trainId);
+    if (ownerIdx >= 0 && ownerIdx !== playerIndex) {
+      var otherHandSize = stateObj.hands[ownerIdx] ? stateObj.hands[ownerIdx].length : 10;
+      d3_block = 0.5 + (otherHandSize <= 3 ? 0.5 : 0.0);
+    }
+
+    // ---- d4_pipRisk: 点数越高风险越大，优先清掉 ----
+    var pipsVal = DominoState.pips(tile);
+    var d4_pipRisk = pipsVal / 18.0;
+
+    // ---- d5_diversity: 剩余手牌中唯一 pip 值种类 / 剩余手牌数 ----
+    var d5_diversity = 0.0;
+    if (handSizeAfter > 0) {
+      var uniquePips = {};
+      for (var j = 0; j < remainingHand.length; j++) {
+        var t = remainingHand[j];
+        uniquePips[t[0]] = true;
+        uniquePips[t[1]] = true;
+      }
+      var uniqueCount = Object.keys(uniquePips).length;
+      d5_diversity = uniqueCount / handSizeAfter;
+    }
+
+    // ---- d6_empty: 清空奖励 ----
+    var d6_empty = 0.0;
+    if (handSizeAfter === 0) {
+      d6_empty = 2.0;
+    } else if (handSizeAfter <= 2) {
+      d6_empty = 0.5;
+    }
+
+    // ---- d7_double: 双牌加分 ----
+    var d7_double = DominoState.isDouble(tile) ? 0.3 : 0.0;
+
+    // ---- d8_selfBlock: 自堵惩罚 ----
+    var d8_selfBlock = 0.0;
+    if (newOpenValue >= 0 && handSizeAfter > 0) {
+      var matchCount = 0;
+      for (var k = 0; k < remainingHand.length; k++) {
+        if (DominoState.matches(remainingHand[k], newOpenValue)) {
+          matchCount++;
+        }
+      }
+      if (matchCount === 0) {
+        d8_selfBlock = -1.0;      // 剩余牌完全无法接上
+      } else if (matchCount <= 2) {
+        d8_selfBlock = -0.3;      // 勉强能接
+      } else {
+        d8_selfBlock = 0.0;       // 充裕
+      }
+    }
+
+    // 加权求和
+    var score =
+      d1_ownTrain   * (weights.d1_ownTrain   || 0) +
+      d2_mexican    * (weights.d2_mexican    || 0) +
+      d3_block      * (weights.d3_block      || 0) +
+      d4_pipRisk    * (weights.d4_pipRisk    || 0) +
+      d5_diversity  * (weights.d5_diversity  || 0) +
+      d6_empty      * (weights.d6_empty      || 0) +
+      d7_double     * (weights.d7_double     || 0) +
+      d8_selfBlock  * (weights.d8_selfBlock  || 0);
+
+    return score;
+  }
+
+  // ============================================================================
+  // selectMove
+  // ============================================================================
+
+  /**
+   * AI 选择最佳出牌。
+   *
+   * @param {object} stateObj   - 完整游戏状态
+   * @param {number} playerIndex - AI 玩家索引
+   * @returns {object|null} { tileIndex, tile, trainId, score } 或 null（无合法出牌）
+   */
+  function selectMove(stateObj, playerIndex) {
+    var legalMoves = DominoEngine.getLegalMoves(stateObj, playerIndex);
+
+    if (!legalMoves || legalMoves.length === 0) {
+      return null;
+    }
+
+    // 仅一个选择时直接返回
+    if (legalMoves.length === 1) {
+      var onlyMove = legalMoves[0];
+      return {
+        tileIndex: onlyMove.tileIndex,
+        tile: onlyMove.tile,
+        trainId: onlyMove.trainId,
+        score: 1.0
+      };
+    }
+
+    var playerCfg = stateObj.players[playerIndex];
+    var personalityId = playerCfg.personality;
+    var mood = _getMood(stateObj, playerIndex);
+    var weights = getEffectiveWeights(personalityId, mood);
+
+    // 为每个合法出牌打分
+    var scored = [];
+    for (var i = 0; i < legalMoves.length; i++) {
+      var move = legalMoves[i];
+      var baseScore = scoreMove(stateObj, playerIndex, move, weights);
+      // 添加 ±5% 随机因子以产生变化
+      var score = baseScore * (0.95 + Math.random() * 0.1);
+      scored.push({
+        tileIndex: move.tileIndex,
+        tile: move.tile,
+        trainId: move.trainId,
+        score: score
+      });
+    }
+
+    // 按得分降序排列
+    scored.sort(function(a, b) {
+      return b.score - a.score;
+    });
+
+    return scored[0];
+  }
+
+  // ============================================================================
+  // selectMessage
+  // ============================================================================
+
+  /**
+   * 根据情景与性格选取对话文本。
+   *
+   * @param {object} stateObj   - 完整游戏状态
+   * @param {number} playerIndex - AI 玩家索引
+   * @param {string} context    - 情景标签（on_good_play, on_draw 等）
+   * @returns {string} 对话文本
+   */
+  function selectMessage(stateObj, playerIndex, context) {
+    var playerCfg = stateObj.players[playerIndex];
+    var personalityId = playerCfg.personality;
+    var cfg = DominoConfig.PERSONALITIES[personalityId];
+
+    if (!cfg || !cfg.messagePools) {
+      return "...";
+    }
+
+    var pool = cfg.messagePools[context];
+    if (!pool) {
+      // 尝试回退到 on_good_play
+      pool = cfg.messagePools["on_good_play"];
+      if (!pool) return "...";
+    }
+
+    // 情绪型需要按 mood 选取正/负面子池
+    if (personalityId === "emotional") {
+      var mood = _getMood(stateObj, playerIndex);
+      var subPool;
+      if (mood > 0.3) {
+        subPool = pool.positive;
+      } else if (mood < -0.3) {
+        subPool = pool.negative;
+      } else {
+        // 中性情绪：随机合并两个子池
+        var combined = (pool.positive || []).concat(pool.negative || []);
+        if (combined.length === 0) return "...";
+        return combined[Math.floor(Math.random() * combined.length)];
+      }
+      if (!subPool || subPool.length === 0) return "...";
+      return subPool[Math.floor(Math.random() * subPool.length)];
+    }
+
+    // 保守型 / 冒险型：pool 直接是字符串数组
+    if (Array.isArray(pool) && pool.length > 0) {
+      return pool[Math.floor(Math.random() * pool.length)];
+    }
+
+    return "...";
+  }
+
+  // ============================================================================
+  // determineContext
+  // ============================================================================
+
+  /**
+   * 根据刚发生的动作确定情景标签。
+   *
+   * @param {object} stateObj     - 完整游戏状态
+   * @param {number} playerIndex  - AI 玩家索引
+   * @param {object} actionResult - Engine 返回的动作结果
+   *   { played, wasDouble, satisfiedDouble, drawn, passed, handEmpty, trainId }
+   * @returns {string} 情景标签
+   */
+  function determineContext(stateObj, playerIndex, actionResult) {
+    var hand = stateObj.hands[playerIndex];
+    var handSize = hand ? hand.length : 0;
+
+    // 赢得本局（手牌清空）
+    if (actionResult.played && actionResult.handEmpty) {
+      return "on_win_round";
+    }
+
+    // 打出双牌
+    if (actionResult.wasDouble) {
+      return "on_double";
+    }
+
+    // 满足双牌规则
+    if (actionResult.satisfiedDouble) {
+      return "on_good_play";
+    }
+
+    // 打出到其他玩家的火车（封锁）
+    if (actionResult.played && actionResult.trainId) {
+      var ownerIdx = _trainOwnerIndex(actionResult.trainId);
+      if (ownerIdx >= 0 && ownerIdx !== playerIndex) {
+        return "on_block_other";
+      }
+    }
+
+    // 摸牌后打出了
+    if (actionResult.drawn && actionResult.played) {
+      return "on_draw_useful";
+    }
+
+    // 摸牌后没打出
+    if (actionResult.drawn && !actionResult.played) {
+      return "on_draw_useless";
+    }
+
+    // 仅摸牌
+    if (actionResult.drawn && !actionResult.played && !actionResult.passed) {
+      return "on_draw_useless";
+    }
+
+    // 有打出（通用 good play）
+    if (actionResult.played) {
+      return "on_good_play";
+    }
+
+    // 跳过
+    if (actionResult.passed) {
+      return "on_pass";
+    }
+
+    // 手牌接近胜利
+    if (handSize > 0 && handSize <= 2) {
+      return "on_near_victory";
+    }
+
+    // 摸牌（无其他信息时）
+    if (actionResult.drawn) {
+      return "on_draw";
+    }
+
+    return "on_good_play";
+  }
+
+  // ============================================================================
+  // updateMood
+  // ============================================================================
+
+  /**
+   * 更新情绪型 AI 的心情值。
+   *
+   * @param {object} stateObj    - 完整游戏状态
+   * @param {number} playerIndex - AI 玩家索引
+   * @param {string} eventType   - 事件类型标签
+   *   play_double, satisfy_double, open_other_train, draw_useful,
+   *   draw_useless, own_train_blocked, others_play_on_mine,
+   *   other_player_wins_round, ai_wins_round, hand_below_3
+   * @returns {number} 更新后的 mood 值
+   */
+  function updateMood(stateObj, playerIndex, eventType) {
+    var aiState = _getAIState(stateObj, playerIndex);
+    var mood = aiState.mood;
+
+    var delta = DominoConfig.MOOD_DELTAS[eventType];
+    if (delta === undefined) {
+      delta = 0;
+    }
+
+    // 应用增量
+    mood += delta;
+
+    // 限制到 [-1.0, 1.0]
+    mood = _clamp(mood, -1.0, 1.0);
+
+    // 惯性衰减（向 0 漂移）
+    mood *= 0.9;
+
+    // 持久化
+    aiState.mood = mood;
+
+    // 记录历史（保留最近 20 条）
+    if (!aiState.moodHistory) {
+      aiState.moodHistory = [];
+    }
+    aiState.moodHistory.push(mood);
+    if (aiState.moodHistory.length > 20) {
+      aiState.moodHistory.shift();
+    }
+
+    // 设置最后事件类型
+    aiState.lastEventType = eventType;
+
+    return mood;
+  }
+
+  // ============================================================================
+  // getMoodEmoji
+  // ============================================================================
+
+  /**
+   * 根据情绪值返回对应颜文字。
+   * 委托 DominoConfig.getMoodEmoji 以保持一致性。
+   *
+   * @param {object} stateObj    - 完整游戏状态
+   * @param {number} playerIndex - AI 玩家索引
+   * @returns {string} 颜文字
+   */
+  function getMoodEmoji(stateObj, playerIndex) {
+    var mood = _getMood(stateObj, playerIndex);
+    return DominoConfig.getMoodEmoji(mood);
+  }
+
+  // ============================================================================
+  // getThinkingDelay
+  // ============================================================================
+
+  /**
+   * 获取 AI"思考"延迟（毫秒），模拟真人思考时间。
+   *
+   * @param {object} stateObj    - 完整游戏状态
+   * @param {number} playerIndex - AI 玩家索引
+   * @returns {number} 延迟毫秒数
+   */
+  function getThinkingDelay(stateObj, playerIndex) {
+    var playerCfg = stateObj.players[playerIndex];
+    var personalityId = playerCfg.personality;
+    var cfg = DominoConfig.PERSONALITIES[personalityId];
+
+    if (!cfg || !cfg.thinkDelay) {
+      return 600; // 默认
+    }
+
+    var min = cfg.thinkDelay.min;
+    var max = cfg.thinkDelay.max;
+
+    // 情绪型：根据心情调整延迟
+    if (personalityId === "emotional") {
+      var mood = _getMood(stateObj, playerIndex);
+      if (mood > 0.3) {
+        // 心情好，反应快
+        min *= 0.8;
+        max *= 0.8;
+      } else if (mood < -0.3) {
+        // 心情差，犹豫
+        min *= 1.2;
+        max *= 1.2;
+      }
+    }
+
+    return min + Math.random() * (max - min);
+  }
+
+  // ============================================================================
+  // 公开 API
+  // ============================================================================
+  return {
+    selectMove: selectMove,
+    scoreMove: scoreMove,
+    getEffectiveWeights: getEffectiveWeights,
+    selectMessage: selectMessage,
+    determineContext: determineContext,
+    updateMood: updateMood,
+    getMoodEmoji: getMoodEmoji,
+    getThinkingDelay: getThinkingDelay
+  };
+
+})();
+</script>
+<script>
+// === DominoUI ===
+// 墨西哥火车多米诺 — 完整 UI 渲染与游戏循环模块
+
+var DominoUI = (function() {
+  "use strict";
+
+  // ============================================================================
+  // CSS 注入
+  // ============================================================================
+  var CSS_TEXT = [
+    "/* === 全局重置 === */",
+    "* { margin: 0; padding: 0; box-sizing: border-box; }",
+    "",
+    "html, body {",
+    "  width: 100%;",
+    "  min-height: 100vh;",
+    "  overflow-x: hidden;",
+    "}",
+    "",
+    "body {",
+    "  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;",
+    "  background: #1a1a2e;",
+    "  color: #e0e0e0;",
+    "  min-width: 1000px;",
+    "  line-height: 1.5;",
+    "}",
+    "",
+    "/* === 主容器 === */",
+    "#game-container {",
+    "  display: grid;",
+    "  grid-template-rows: auto auto 1fr auto auto auto;",
+    "  grid-template-columns: 1fr;",
+    "  gap: 12px;",
+    "  max-width: 1400px;",
+    "  margin: 0 auto;",
+    "  padding: 16px 20px;",
+    "  min-height: 100vh;",
+    "}",
+    "",
+    "/* === Header === */",
+    "#header {",
+    "  display: flex;",
+    "  justify-content: space-between;",
+    "  align-items: center;",
+    "  padding: 12px 20px;",
+    "  background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);",
+    "  border-radius: 10px;",
+    "  border: 1px solid #1a3a5c;",
+    "}",
+    "",
+    "#header h1 {",
+    "  font-size: 1.6em;",
+    "  font-weight: 700;",
+    "  letter-spacing: 2px;",
+    "  color: #e0d5c0;",
+    "  text-shadow: 0 2px 4px rgba(0,0,0,0.5);",
+    "}",
+    "",
+    "#round-info, #target-info {",
+    "  font-size: 0.95em;",
+    "  padding: 4px 14px;",
+    "  background: rgba(255,255,255,0.08);",
+    "  border-radius: 16px;",
+    "  color: #b0c4de;",
+    "}",
+    "",
+    "#round-info { margin-right: 8px; }",
+    "",
+    "/* === 主区域：分数面板 + 棋盘 === */",
+    "#main-area {",
+    "  display: grid;",
+    "  grid-template-columns: 240px 1fr;",
+    "  gap: 12px;",
+    "  min-height: 400px;",
+    "}",
+    "",
+    "/* --- 分面板 --- */",
+    "#score-panel {",
+    "  display: flex;",
+    "  flex-direction: column;",
+    "  gap: 8px;",
+    "}",
+    "",
+    ".score-card {",
+    "  background: #16213e;",
+    "  border: 1px solid #1a3a5c;",
+    "  border-radius: 8px;",
+    "  padding: 10px 12px;",
+    "  transition: all 0.25s ease;",
+    "  position: relative;",
+    "}",
+    "",
+    ".score-card.active {",
+    "  border-left: 4px solid #4fc3f7;",
+    "  box-shadow: 0 0 14px rgba(79,195,247,0.25);",
+    "  background: #1a2744;",
+    "}",
+    "",
+    ".score-card-header {",
+    "  display: flex;",
+    "  align-items: center;",
+    "  gap: 6px;",
+    "  margin-bottom: 4px;",
+    "}",
+    "",
+    ".score-card-emoji { font-size: 1.3em; }",
+    "",
+    ".score-card-name {",
+    "  font-weight: 600;",
+    "  font-size: 0.95em;",
+    "}",
+    "",
+    ".score-card-badge {",
+    "  font-size: 0.7em;",
+    "  padding: 1px 6px;",
+    "  border-radius: 8px;",
+    "  background: rgba(255,255,255,0.1);",
+    "  color: #aaa;",
+    "}",
+    "",
+    ".score-card-round {",
+    "  font-size: 0.82em;",
+    "  color: #f0c060;",
+    "}",
+    "",
+    ".score-card-total {",
+    "  font-size: 0.82em;",
+    "  color: #a0d0a0;",
+    "}",
+    "",
+    ".score-card-total.leading {",
+    "  color: #ff6b6b;",
+    "  font-weight: 600;",
+    "}",
+    "",
+    "/* --- 棋盘区域 --- */",
+    "#board-area {",
+    "  display: flex;",
+    "  flex-direction: column;",
+    "  gap: 10px;",
+    "}",
+    "",
+    "#engine-display {",
+    "  display: flex;",
+    "  align-items: center;",
+    "  justify-content: center;",
+    "  gap: 10px;",
+    "  padding: 6px 0;",
+    "}",
+    "",
+    ".engine-badge {",
+    "  font-size: 1.1em;",
+    "  padding: 6px 18px;",
+    "  background: #0f3460;",
+    "  border: 2px solid #e2b04a;",
+    "  border-radius: 20px;",
+    "  color: #e2b04a;",
+    "  font-weight: 600;",
+    "  letter-spacing: 1px;",
+    "}",
+    "",
+    "#trains-container {",
+    "  display: flex;",
+    "  flex-direction: column;",
+    "  gap: 8px;",
+    "}",
+    "",
+    ".train-row {",
+    "  display: flex;",
+    "  align-items: center;",
+    "  gap: 4px;",
+    "  padding: 6px 10px;",
+    "  background: #0d1b32;",
+    "  border: 2px solid transparent;",
+    "  border-radius: 8px;",
+    "  min-height: 52px;",
+    "  overflow-x: auto;",
+    "  transition: border-color 0.2s, box-shadow 0.2s;",
+    "  cursor: default;",
+    "  scrollbar-width: thin;",
+    "  scrollbar-color: #2a3a5c transparent;",
+    "}",
+    "",
+    ".train-row::-webkit-scrollbar { height: 4px; }",
+    ".train-row::-webkit-scrollbar-track { background: transparent; }",
+    ".train-row::-webkit-scrollbar-thumb { background: #2a3a5c; border-radius: 2px; }",
+    "",
+    ".train-row.highlight {",
+    "  border-color: #4fc3f7;",
+    "  box-shadow: 0 0 12px rgba(79,195,247,0.35);",
+    "  cursor: pointer;",
+    "}",
+    "",
+    ".train-row.highlight:hover {",
+    "  background: #122344;",
+    "}",
+    "",
+    ".train-label {",
+    "  flex-shrink: 0;",
+    "  font-size: 0.8em;",
+    "  padding: 4px 10px;",
+    "  border-radius: 12px;",
+    "  font-weight: 600;",
+    "  white-space: nowrap;",
+    "  min-width: 70px;",
+    "  text-align: center;",
+    "}",
+    "",
+    ".train-tiles {",
+    "  display: flex;",
+    "  gap: 3px;",
+    "  flex-wrap: nowrap;",
+    "  align-items: center;",
+    "  overflow-x: auto;",
+    "  flex: 1;",
+    "  scrollbar-width: none;",
+    "}",
+    "",
+    ".train-tiles::-webkit-scrollbar { display: none; }",
+    "",
+    ".train-open {",
+    "  flex-shrink: 0;",
+    "  width: 28px;",
+    "  height: 28px;",
+    "  border-radius: 50%;",
+    "  display: flex;",
+    "  align-items: center;",
+    "  justify-content: center;",
+    "  font-size: 0.75em;",
+    "  font-weight: 700;",
+    "  color: #fff;",
+    "}",
+    "",
+    ".train-badge {",
+    "  flex-shrink: 0;",
+    "  font-size: 0.7em;",
+    "  padding: 2px 6px;",
+    "  border-radius: 8px;",
+    "  white-space: nowrap;",
+    "  font-weight: 500;",
+    "}",
+    "",
+    "/* === 骨牌 tile === */",
+    ".tile {",
+    "  flex-shrink: 0;",
+    "  width: 50px;",
+    "  height: 28px;",
+    "  background: #f0e6d3;",
+    "  border: 1.5px solid #8b7355;",
+    "  border-radius: 4px;",
+    "  display: flex;",
+    "  align-items: center;",
+    "  justify-content: center;",
+    "  font-size: 0.7em;",
+    "  font-weight: 700;",
+    "  color: #3e2f1c;",
+    "  cursor: pointer;",
+    "  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;",
+    "  user-select: none;",
+    "  position: relative;",
+    "}",
+    "",
+    ".tile:hover {",
+    "  transform: translateY(-2px);",
+    "  box-shadow: 0 3px 8px rgba(0,0,0,0.3);",
+    "}",
+    "",
+    ".tile.small {",
+    "  width: 40px;",
+    "  height: 22px;",
+    "  font-size: 0.62em;",
+    "}",
+    "",
+    ".tile-double {",
+    "  border-color: #d4a017;",
+    "  border-width: 2px;",
+    "  box-shadow: 0 0 6px rgba(212,160,23,0.3);",
+    "}",
+    "",
+    ".tile-selected {",
+    "  border-color: #4fc3f7 !important;",
+    "  box-shadow: 0 0 12px rgba(79,195,247,0.6) !important;",
+    "  transform: translateY(-4px) !important;",
+    "  background: #faf3e6 !important;",
+    "}",
+    "",
+    ".tile-legal {",
+    "  border-color: #66bb6a !important;",
+    "  box-shadow: 0 0 6px rgba(102,187,106,0.4);",
+    "}",
+    "",
+    ".tile-highlight-train {",
+    "  border-color: #4fc3f7 !important;",
+    "  box-shadow: 0 0 8px rgba(79,195,247,0.4);",
+    "}",
+    "",
+    "/* === AI 状态卡 === */",
+    "#ai-cards {",
+    "  display: flex;",
+    "  flex-direction: row;",
+    "  gap: 10px;",
+    "  flex-wrap: wrap;",
+    "}",
+    "",
+    ".ai-card {",
+    "  width: 220px;",
+    "  background: #16213e;",
+    "  border: 1px solid #1a3a5c;",
+    "  border-radius: 10px;",
+    "  padding: 12px;",
+    "  transition: all 0.25s ease;",
+    "}",
+    "",
+    ".ai-card.thinking {",
+    "  animation: pulse 1.5s ease-in-out infinite;",
+    "  border-color: #ffb74d;",
+    "  box-shadow: 0 0 16px rgba(255,183,77,0.3);",
+    "}",
+    "",
+    ".ai-card-top {",
+    "  display: flex;",
+    "  align-items: center;",
+    "  gap: 8px;",
+    "  margin-bottom: 6px;",
+    "}",
+    "",
+    ".ai-card-emoji { font-size: 1.8em; }",
+    "",
+    ".ai-card-name {",
+    "  font-weight: 600;",
+    "  font-size: 0.95em;",
+    "}",
+    "",
+    ".ai-card-badge {",
+    "  font-size: 0.7em;",
+    "  padding: 1px 7px;",
+    "  border-radius: 8px;",
+    "  background: rgba(255,255,255,0.12);",
+    "  color: #ccc;",
+    "}",
+    "",
+    ".ai-card-mood {",
+    "  font-size: 1.4em;",
+    "  display: inline-block;",
+    "}",
+    "",
+    ".ai-card-hand {",
+    "  font-size: 0.82em;",
+    "  color: #b0c4de;",
+    "  margin-bottom: 4px;",
+    "}",
+    "",
+    ".ai-card-msg {",
+    "  font-size: 0.78em;",
+    "  color: #d0c8b0;",
+    "  font-style: italic;",
+    "  background: rgba(255,255,255,0.05);",
+    "  border-radius: 6px;",
+    "  padding: 5px 8px;",
+    "  margin-top: 4px;",
+    "  min-height: 20px;",
+    "  word-break: break-word;",
+    "  transition: opacity 0.3s;",
+    "}",
+    "",
+    ".ai-card-thinking-text {",
+    "  font-size: 0.78em;",
+    "  color: #ffb74d;",
+    "}",
+    "",
+    "/* === 事件日志 === */",
+    "#event-log {",
+    "  height: 120px;",
+    "  overflow-y: auto;",
+    "  background: #0d1b32;",
+    "  border: 1px solid #1a3a5c;",
+    "  border-radius: 8px;",
+    "  padding: 8px 12px;",
+    "  font-size: 0.8em;",
+    "  line-height: 1.6;",
+    "  scrollbar-width: thin;",
+    "  scrollbar-color: #2a3a5c transparent;",
+    "}",
+    "",
+    "#event-log::-webkit-scrollbar { width: 4px; }",
+    "#event-log::-webkit-scrollbar-track { background: transparent; }",
+    "#event-log::-webkit-scrollbar-thumb { background: #2a3a5c; border-radius: 2px; }",
+    "",
+    ".event-entry {",
+    "  padding: 2px 0;",
+    "  border-bottom: 1px solid rgba(255,255,255,0.03);",
+    "  animation: slideIn 0.3s ease-out;",
+    "}",
+    "",
+    ".event-system { color: #888; }",
+    ".event-round-break {",
+    "  color: #e2b04a;",
+    "  text-align: center;",
+    "  font-weight: 600;",
+    "  padding: 4px 0;",
+    "}",
+    ".event-gameover {",
+    "  color: #ff6b6b;",
+    "  text-align: center;",
+    "  font-size: 0.95em;",
+    "  font-weight: 700;",
+    "  padding: 4px 0;",
+    "}",
+    "",
+    "/* === 手牌区域 === */",
+    "#hand-area {",
+    "  padding: 12px 16px;",
+    "  background: #16213e;",
+    "  border-radius: 10px;",
+    "  border: 1px solid #1a3a5c;",
+    "}",
+    "",
+    "#hand-area-label {",
+    "  font-size: 0.85em;",
+    "  color: #b0c4de;",
+    "  margin-bottom: 6px;",
+    "  font-weight: 600;",
+    "}",
+    "",
+    "#hand-tiles {",
+    "  display: flex;",
+    "  flex-wrap: wrap;",
+    "  gap: 6px;",
+    "  align-items: flex-start;",
+    "  min-height: 36px;",
+    "}",
+    "",
+    "#action-buttons {",
+    "  display: flex;",
+    "  gap: 10px;",
+    "  margin-top: 10px;",
+    "}",
+    "",
+    "#action-buttons button {",
+    "  padding: 8px 22px;",
+    "  border: none;",
+    "  border-radius: 8px;",
+    "  font-size: 0.9em;",
+    "  font-weight: 600;",
+    "  cursor: pointer;",
+    "  transition: all 0.2s;",
+    "  color: #fff;",
+    "  letter-spacing: 1px;",
+    "}",
+    "",
+    "#action-buttons button:hover {",
+    "  transform: translateY(-1px);",
+    "  box-shadow: 0 4px 12px rgba(0,0,0,0.3);",
+    "}",
+    "",
+    "#action-buttons button:active {",
+    "  transform: translateY(0);",
+    "}",
+    "",
+    "#btn-draw {",
+    "  background: linear-gradient(135deg, #4fc3f7, #29b6f6);",
+    "}",
+    "",
+    "#btn-draw:hover {",
+    "  background: linear-gradient(135deg, #29b6f6, #03a9f4);",
+    "}",
+    "",
+    "#btn-pass {",
+    "  background: linear-gradient(135deg, #ffb74d, #ff9800);",
+    "}",
+    "",
+    "#btn-pass:hover {",
+    "  background: linear-gradient(135deg, #ff9800, #f57c00);",
+    "}",
+    "",
+    "/* === 覆盖层 / 模态框 === */",
+    "#overlay {",
+    "  position: fixed;",
+    "  inset: 0;",
+    "  background: rgba(0,0,0,0.75);",
+    "  display: flex;",
+    "  align-items: center;",
+    "  justify-content: center;",
+    "  z-index: 1000;",
+    "  animation: fadeIn 0.3s ease-out;",
+    "}",
+    "",
+    "#overlay.hidden { display: none; }",
+    "",
+    "#overlay-content {",
+    "  background: linear-gradient(135deg, #16213e, #1a2744);",
+    "  border: 2px solid #e2b04a;",
+    "  border-radius: 16px;",
+    "  padding: 30px 40px;",
+    "  min-width: 380px;",
+    "  max-width: 500px;",
+    "  text-align: center;",
+    "  box-shadow: 0 10px 40px rgba(0,0,0,0.6);",
+    "  animation: popIn 0.35s ease-out;",
+    "}",
+    "",
+    "#overlay-content h2 {",
+    "  font-size: 1.6em;",
+    "  margin-bottom: 16px;",
+    "  color: #e2b04a;",
+    "}",
+    "",
+    "#overlay-content table {",
+    "  width: 100%;",
+    "  border-collapse: collapse;",
+    "  margin: 16px 0;",
+    "  font-size: 0.9em;",
+    "}",
+    "",
+    "#overlay-content th {",
+    "  text-align: left;",
+    "  padding: 6px 8px;",
+    "  border-bottom: 1px solid #2a3a5c;",
+    "  color: #b0c4de;",
+    "  font-weight: 500;",
+    "}",
+    "",
+    "#overlay-content td {",
+    "  text-align: left;",
+    "  padding: 6px 8px;",
+    "  border-bottom: 1px solid rgba(42,58,92,0.5);",
+    "}",
+    "",
+    "#overlay-btn {",
+    "  margin-top: 20px;",
+    "  padding: 10px 32px;",
+    "  font-size: 1em;",
+    "  font-weight: 700;",
+    "  border: none;",
+    "  border-radius: 10px;",
+    "  background: linear-gradient(135deg, #e2b04a, #d4a017);",
+    "  color: #1a1a2e;",
+    "  cursor: pointer;",
+    "  transition: all 0.2s;",
+    "  letter-spacing: 1px;",
+    "}",
+    "",
+    "#overlay-btn:hover {",
+    "  transform: translateY(-2px);",
+    "  box-shadow: 0 6px 20px rgba(226,176,74,0.4);",
+    "}",
+    "",
+    "/* === 动画 === */",
+    "@keyframes pulse {",
+    "  0%, 100% { box-shadow: 0 0 8px rgba(255,183,77,0.2); }",
+    "  50% { box-shadow: 0 0 20px rgba(255,183,77,0.5); }",
+    "}",
+    "",
+    "@keyframes slideIn {",
+    "  from { opacity: 0; transform: translateY(-8px); }",
+    "  to { opacity: 1; transform: translateY(0); }",
+    "}",
+    "",
+    "@keyframes fadeIn {",
+    "  from { opacity: 0; }",
+    "  to { opacity: 1; }",
+    "}",
+    "",
+    "@keyframes popIn {",
+    "  from { opacity: 0; transform: scale(0.85); }",
+    "  to { opacity: 1; transform: scale(1); }",
+    "}",
+    "",
+    "/* === 响应式 === */",
+    "@media (max-width: 1100px) {",
+    "  #main-area {",
+    "    grid-template-columns: 200px 1fr;",
+    "  }",
+    "  .ai-card {",
+    "    width: 180px;",
+    "  }",
+    "}",
+    "",
+    "/* === 隐藏按钮 === */",
+    "#action-buttons button.hidden {",
+    "  display: none;",
+    "}",
+    ""
+  ].join("\n");
+
+  function injectCSS() {
+    var styleEl = document.createElement("style");
+    styleEl.textContent = CSS_TEXT;
+    document.head.appendChild(styleEl);
+  }
+
+  // ============================================================================
+  // 常量
+  // ============================================================================
+  var MAX_EVENT_LOG_ENTRIES = 50;
+
+  // ============================================================================
+  // 玩家颜色缓存 (从 Config 中提取)
+  // ============================================================================
+  function getPlayerColor(index) {
+    var players = DominoConfig.PLAYERS;
+    if (players && players[index]) {
+      return players[index].color;
+    }
+    return "#e0e0e0";
+  }
+
+  function getPlayerEmoji(index) {
+    var players = DominoConfig.PLAYERS;
+    if (players && players[index]) {
+      return players[index].emoji;
+    }
+    return "?";
+  }
+
+  function getPlayerName(index) {
+    var players = DominoConfig.PLAYERS;
+    if (players && players[index]) {
+      return players[index].name;
+    }
+    return "Player " + index;
+  }
+
+  function getPlayerPersonality(index) {
+    var players = DominoConfig.PLAYERS;
+    if (players && players[index]) {
+      return players[index].personality;
+    }
+    return "human";
+  }
+
+  // ============================================================================
+  // 初始化
+  // ============================================================================
+  function init() {
+    // 1. 注入 CSS
+    injectCSS();
+
+    // 2. 创建 DOM 结构
+    createDOMStructure();
+
+    // 3. 设置事件监听
+    setupEventListeners();
+
+    // 4. 初始化游戏
+    DominoApp.state = DominoState.initNewGame();
+    DominoEngine.initRound(DominoApp.state);
+
+    // 5. 渲染全部
+    renderAll();
+
+    // 6. 启动游戏循环
+    processNextTurn();
+  }
+
+  // ============================================================================
+  // DOM 结构创建
+  // ============================================================================
+  function createDOMStructure() {
+    var container = document.createElement("div");
+    container.id = "game-container";
+    container.innerHTML = [
+      '<div id="header">',
+      '  <h1>&#x1F004; 墨西哥火车多米诺</h1>',
+      '  <span id="round-info">第 1 轮</span>',
+      '  <span id="target-info">目标: ' + DominoConfig.TARGET_SCORE + '分</span>',
+      '</div>',
+      '<div id="main-area">',
+      '  <div id="score-panel"></div>',
+      '  <div id="board-area">',
+      '    <div id="engine-display"></div>',
+      '    <div id="trains-container"></div>',
+      '  </div>',
+      '</div>',
+      '<div id="ai-cards"></div>',
+      '<div id="event-log"></div>',
+      '<div id="hand-area">',
+      '  <div id="hand-area-label">你的手牌</div>',
+      '  <div id="hand-tiles"></div>',
+      '  <div id="action-buttons">',
+      '    <button id="btn-draw">&#x1F0CF; 摸牌</button>',
+      '    <button id="btn-pass">&#x23ED; 跳过</button>',
+      '  </div>',
+      '</div>',
+      '</div>',
+      '<div id="overlay" class="hidden">',
+      '  <div id="overlay-content"></div>',
+      '</div>'
+    ].join("\n");
+    document.body.appendChild(container);
+  }
+
+  // ============================================================================
+  // 元素获取辅助函数
+  // ============================================================================
+  function $(id) { return document.getElementById(id); }
+
+  // ============================================================================
+  // 事件监听设置
+  // ============================================================================
+  function setupEventListeners() {
+    // 手牌点击（事件委托）
+    var handTiles = $("hand-tiles");
+    if (handTiles) {
+      handTiles.addEventListener("click", function(e) {
+        var tileEl = e.target.closest(".tile");
+        if (!tileEl) return;
+        var stateObj = getState();
+        if (!stateObj) return;
+        // 只有人类玩家回合才响应
+        if (stateObj.currentPlayerIndex !== 0) return;
+        if (stateObj.phase !== "waiting_human") return;
+
+        var tileIndex = parseInt(tileEl.getAttribute("data-tile-index"), 10);
+        if (isNaN(tileIndex)) return;
+
+        // 切换选择
+        if (stateObj.selectedTileIndex === tileIndex) {
+          stateObj.selectedTileIndex = null;
+        } else {
+          stateObj.selectedTileIndex = tileIndex;
+        }
+        renderAll();
+      });
+    }
+
+    // 火车行点击（事件委托）
+    var trainsContainer = $("trains-container");
+    if (trainsContainer) {
+      trainsContainer.addEventListener("click", function(e) {
+        var trainRow = e.target.closest(".train-row.highlight");
+        if (!trainRow) return;
+        var stateObj = getState();
+        if (!stateObj) return;
+        if (stateObj.currentPlayerIndex !== 0) return;
+        if (stateObj.phase !== "waiting_human") return;
+        if (stateObj.selectedTileIndex === null) return;
+
+        var trainId = trainRow.getAttribute("data-train-id");
+        if (!trainId) return;
+
+        // 尝试出牌
+        var result = DominoEngine.executePlay(stateObj, 0, stateObj.selectedTileIndex, trainId);
+        stateObj.selectedTileIndex = null;
+
+        if (result && result.success) {
+          var tile = result.tile;
+          var tileStr = tile[0] + "|" + tile[1];
+          var trainName = getTrainDisplayName(trainId, stateObj);
+          addEvent(stateObj, 0, "play", "你 出了 [" + tileStr + "] → " + trainName);
+        }
+
+        renderAll();
+        setTimeout(function() { processNextTurn(); }, 300);
+      });
+    }
+
+    // 摸牌按钮
+    var btnDraw = $("btn-draw");
+    if (btnDraw) {
+      btnDraw.addEventListener("click", function() {
+        var stateObj = getState();
+        if (!stateObj) return;
+        if (stateObj.currentPlayerIndex !== 0) return;
+
+        var result = DominoEngine.executeDraw(stateObj, 0);
+
+        if (result && result.success) {
+          if (result.tile) {
+            var tile = result.tile;
+            var tileStr = tile[0] + "|" + tile[1];
+            addEvent(stateObj, 0, "draw", "你 摸了 [" + tileStr + "]");
+
+            // 检查摸到的牌能否打出
+            var legalMoves = DominoEngine.getLegalMoves(stateObj, 0);
+            if (!legalMoves || legalMoves.length === 0) {
+              // 不能打出，显示 pass 按钮
+              stateObj.phase = "waiting_human_drew_no_play";
+            } else {
+              // 自动打出了
+              addEvent(stateObj, 0, "play", "你 打出摸到的牌 [" + tileStr + "]");
+            }
+          } else if (result.autoPlayed) {
+            var atile = result.autoPlayed.tile;
+            var trainName = getTrainDisplayName(result.autoPlayed.trainId, stateObj);
+            addEvent(stateObj, 0, "play",
+              "你 打出摸到的牌 [" + atile[0] + "|" + atile[1] + "] → " + trainName);
+          }
+        }
+
+        renderAll();
+        setTimeout(function() { processNextTurn(); }, 300);
+      });
+    }
+
+    // 跳过按钮
+    var btnPass = $("btn-pass");
+    if (btnPass) {
+      btnPass.addEventListener("click", function() {
+        var stateObj = getState();
+        if (!stateObj) return;
+        if (stateObj.currentPlayerIndex !== 0) return;
+
+        DominoEngine.executePass(stateObj, 0);
+        addEvent(stateObj, 0, "pass", "你 跳过回合，火车开放");
+
+        renderAll();
+        setTimeout(function() { processNextTurn(); }, 300);
+      });
+    }
+
+    // 覆盖层按钮（动态绑定，点击时处理）
+    var overlay = $("overlay");
+    if (overlay) {
+      overlay.addEventListener("click", function(e) {
+        var btn = e.target.closest("#overlay-btn");
+        if (!btn) return;
+        var action = btn.getAttribute("data-action");
+        if (action === "new_game") {
+          handleNewGame();
+        } else if (action === "next_round") {
+          handleNextRound();
+        }
+      });
+    }
+  }
+
+  // ============================================================================
+  // 状态获取
+  // ============================================================================
+  function getState() {
+    return (typeof DominoApp !== "undefined" && DominoApp.state) ? DominoApp.state : null;
+  }
+
+  // ============================================================================
+  // 核心渲染函数
+  // ============================================================================
+
+  function renderAll() {
+    renderScores();
+    renderBoard();
+    renderHand();
+    renderAICards();
+    renderEventLog();
+    updateActionButtons();
+  }
+
+  // ============================================================================
+  // 分数面板
+  // ============================================================================
+  function renderScores() {
+    var panel = $("score-panel");
+    if (!panel) return;
+    var stateObj = getState();
+    if (!stateObj) return;
+
+    var players = stateObj.players;
+    var html = "";
+
+    for (var i = 0; i < players.length; i++) {
+      var p = players[i];
+      var isActive = (stateObj.currentPlayerIndex === i);
+      var cardClass = "score-card" + (isActive ? " active" : "");
+      var nameColor = "color:" + getPlayerColor(i) + ";";
+
+      // 本轮惩罚：计算手牌点数和
+      var roundPenalty = 0;
+      if (p.hand && p.hand.length > 0) {
+        for (var h = 0; h < p.hand.length; h++) {
+          roundPenalty += DominoState.pips(p.hand[h]);
+        }
+      }
+
+      var totalScore = p.totalScore || 0;
+
+      // 找出当前领先（分数最低的）玩家
+      var minScore = Infinity;
+      for (var j = 0; j < players.length; j++) {
+        if ((players[j].totalScore || 0) < minScore) {
+          minScore = (players[j].totalScore || 0);
+        }
+      }
+      var isLeading = (totalScore === minScore && players.length > 1);
+
+      var totalClass = "score-card-total" + (isLeading ? " leading" : "");
+
+      html += '<div class="' + cardClass + '">';
+      html += '  <div class="score-card-header">';
+      html += '    <span class="score-card-emoji">' + p.emoji + '</span>';
+      html += '    <span class="score-card-name" style="' + nameColor + '">' + p.name + '</span>';
+      if (p.personality && p.personality !== "human") {
+        var persName = getPersonalityLabel(p.personality);
+        html += '    <span class="score-card-badge">' + persName + '</span>';
+      }
+      html += '  </div>';
+      html += '  <div class="score-card-round">本轮: ' + roundPenalty + '分</div>';
+      html += '  <div class="' + totalClass + '">累计: ' + totalScore + '分</div>';
+      html += '</div>';
+    }
+
+    panel.innerHTML = html;
+  }
+
+  function getPersonalityLabel(personality) {
+    if (personality === "conservative") return "保守型";
+    if (personality === "aggressive") return "冒险型";
+    if (personality === "emotional") return "情绪型";
+    return personality;
+  }
+
+  // ============================================================================
+  // 棋盘渲染
+  // ============================================================================
+  function renderBoard() {
+    var stateObj = getState();
+    if (!stateObj) return;
+
+    // 引擎显示
+    var engineDisplay = $("engine-display");
+    if (engineDisplay) {
+      engineDisplay.innerHTML = '<span class="engine-badge">&#x1F004; 引擎: ' +
+        (stateObj.engineValue !== null ? stateObj.engineValue : "—") + '</span>';
+    }
+
+    // 火车容器
+    var container = $("trains-container");
+    if (!container) return;
+
+    // 计算哪些火车对当前选中牌是合法的
+    var legalTrainIds = {};
+    if (stateObj.selectedTileIndex !== null && stateObj.legalMoves) {
+      var moves = stateObj.legalMoves;
+      for (var m = 0; m < moves.length; m++) {
+        if (moves[m].tileIndex === stateObj.selectedTileIndex) {
+          legalTrainIds[moves[m].trainId] = true;
+        }
+      }
+    }
+
+    // 渲染顺序：墨西哥火车优先，然后个人火车按玩家顺序
+    var trainOrder = ["mexican", "p0", "p1", "p2", "p3"];
+    var html = "";
+
+    for (var t = 0; t < trainOrder.length; t++) {
+      var tid = trainOrder[t];
+      var train = null;
+      for (var tr = 0; tr < stateObj.trains.length; tr++) {
+        if (stateObj.trains[tr].id === tid) {
+          train = stateObj.trains[tr];
+          break;
+        }
+      }
+      if (!train) continue;
+
+      var isHighlighted = (tid in legalTrainIds);
+      var rowClass = "train-row" + (isHighlighted ? " highlight" : "");
+      var displayName = getTrainDisplayName(tid, stateObj);
+
+      html += '<div class="' + rowClass + '" data-train-id="' + tid + '">';
+
+      // 标签
+      var labelColor = getTrainLabelColor(tid, stateObj);
+      html += '<span class="train-label" style="background:' + labelColor + ';">' + displayName + '</span>';
+
+      // 徽章
+      if (train.isPublic) {
+        html += '<span class="train-badge" style="background:rgba(255,255,255,0.12);">&#x1F513; 开放</span>';
+      }
+
+      // 未满足双牌警告
+      if (train.hasUnsatisfiedDouble && train.unsatisfiedDoubleValue !== null) {
+        html += '<span class="train-badge" style="background:rgba(255,100,100,0.2);color:#ff6b6b;">&#x26A0;&#xFE0F; 需满足双' + train.unsatisfiedDoubleValue + '</span>';
+      }
+
+      // 开放标记（自己的火车当不能出牌时）
+      if (tid === "p0" && stateObj.currentPlayerIndex === 0 &&
+          stateObj.phase === "waiting_human_drew_no_play") {
+        // 人类跳过，自己的火车开放（但实际上是自己跳过了）
+        // 此标记由 advanceTurn 或 pass 逻辑处理，我们检查 train.isPublic
+      }
+      if (tid === "p0" && train.isPublic && stateObj.currentPlayerIndex !== 0) {
+        html += '<span class="train-badge" style="background:rgba(102,187,106,0.2);color:#66bb6a;">&#x1F513; 开放</span>';
+      }
+
+      // 牌
+      html += '<span class="train-tiles">';
+      for (var ti = 0; ti < train.tiles.length; ti++) {
+        html += renderTileHTML(train.tiles[ti], "small");
+      }
+      html += '</span>';
+
+      // 开放端标记
+      if (train.openValue !== null) {
+        var openColor = getTrainOpenColor(tid, stateObj);
+        html += '<span class="train-open" style="background:' + openColor + ';">' + train.openValue + '</span>';
+      }
+
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  function getTrainLabelColor(trainId, stateObj) {
+    if (trainId === "mexican") return "#e2b04a";
+    var idx = parseInt(trainId.charAt(1), 10);
+    if (isNaN(idx)) return "#555";
+    return getPlayerColor(idx);
+  }
+
+  function getTrainOpenColor(trainId, stateObj) {
+    if (trainId === "mexican") return "#c49a30";
+    var idx = parseInt(trainId.charAt(1), 10);
+    if (isNaN(idx)) return "#555";
+    return getPlayerColor(idx);
+  }
+
+  // ============================================================================
+  // 手牌渲染
+  // ============================================================================
+  function renderHand() {
+    var handTiles = $("hand-tiles");
+    if (!handTiles) return;
+    var stateObj = getState();
+    if (!stateObj) return;
+
+    // 获取人类玩家的手牌
+    var humanPlayer = stateObj.players[0];
+    if (!humanPlayer || !humanPlayer.hand) {
+      handTiles.innerHTML = "";
+      return;
+    }
+
+    var hand = humanPlayer.hand;
+
+    // 获取合法出牌（用于标记哪些牌可以打出）
+    var legalTileIndices = {};
+    if (stateObj.legalMoves) {
+      var moves = stateObj.legalMoves;
+      for (var m = 0; m < moves.length; m++) {
+        legalTileIndices[moves[m].tileIndex] = true;
+      }
+    }
+
+    var html = "";
+    for (var i = 0; i < hand.length; i++) {
+      var tile = hand[i];
+      var classes = "tile";
+      if (stateObj.selectedTileIndex === i) {
+        classes += " tile-selected";
+      }
+      if (i in legalTileIndices) {
+        classes += " tile-legal";
+      }
+      if (DominoState.isDouble(tile)) {
+        classes += " tile-double";
+      }
+      html += '<div class="' + classes + '" data-tile-index="' + i + '">' +
+        tile[0] + '│' + tile[1] + '</div>';
+    }
+
+    handTiles.innerHTML = html;
+  }
+
+  function renderTileHTML(tile, size) {
+    var classes = "tile";
+    if (size === "small") classes += " small";
+    if (DominoState.isDouble(tile)) classes += " tile-double";
+    return '<div class="' + classes + '">' + tile[0] + '│' + tile[1] + '</div>';
+  }
+
+  function renderTileElement(tile, size) {
+    var el = document.createElement("div");
+    el.className = "tile" + (size === "small" ? " small" : "");
+    if (DominoState.isDouble(tile)) {
+      el.className += " tile-double";
+    }
+    el.textContent = tile[0] + "│" + tile[1];
+    return el;
+  }
+
+  // ============================================================================
+  // AI 状态卡
+  // ============================================================================
+  function renderAICards() {
+    var container = $("ai-cards");
+    if (!container) return;
+    var stateObj = getState();
+    if (!stateObj) return;
+
+    var html = "";
+    for (var i = 1; i <= 3; i++) {
+      var player = stateObj.players[i];
+      if (!player) continue;
+
+      var aiState = stateObj.aiStates ? stateObj.aiStates[i] : null;
+      var isThinking = (stateObj.phase === "ai_thinking" && stateObj.currentPlayerIndex === i);
+      var cardClass = "ai-card" + (isThinking ? " thinking" : "");
+      var color = getPlayerColor(i);
+
+      html += '<div class="' + cardClass + '">';
+
+      // 顶部：emoji + 名字 + 个性标签
+      html += '<div class="ai-card-top">';
+      html += '<span class="ai-card-emoji">' + player.emoji + '</span>';
+      html += '<div>';
+      html += '<div class="ai-card-name" style="color:' + color + ';">' + player.name + '</div>';
+      html += '<span class="ai-card-badge" style="background:' + color + '33;color:' + color + ';">' +
+        getPersonalityLabel(player.personality) + '</span>';
+      html += '</div>';
+      html += '</div>';
+
+      // 情绪 emoji（仅情绪型 AI 显示）
+      if (player.personality === "emotional" && aiState) {
+        var moodEmoji = DominoConfig.getMoodEmoji(aiState.mood);
+        html += '<div style="margin-bottom:2px;">';
+        html += '<span class="ai-card-mood">' + moodEmoji + '</span>';
+        html += '</div>';
+      }
+
+      // 手牌数
+      html += '<div class="ai-card-hand">&#x1F0CF; ×' + (player.hand ? player.hand.length : 0) + '</div>';
+
+      // 思考中 / 消息
+      if (isThinking) {
+        html += '<div class="ai-card-thinking-text">思考中...</div>';
+      } else if (player.latestMessage) {
+        html += '<div class="ai-card-msg">' + escapeHTML(player.latestMessage) + '</div>';
+      }
+
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  // ============================================================================
+  // 事件日志
+  // ============================================================================
+  function renderEventLog() {
+    var logEl = $("event-log");
+    if (!logEl) return;
+    var stateObj = getState();
+    if (!stateObj) return;
+
+    var log = stateObj.eventLog || [];
+    var html = "";
+
+    // 只显示最近 MAX_EVENT_LOG_ENTRIES 条
+    var start = Math.max(0, log.length - MAX_EVENT_LOG_ENTRIES);
+    for (var i = start; i < log.length; i++) {
+      html += renderEventEntryHTML(log[i]);
+    }
+
+    logEl.innerHTML = html;
+
+    // 自动滚动到底部
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function renderEventEntryHTML(entry) {
+    var cls = "event-entry";
+    var msg = escapeHTML(entry.message || "");
+
+    if (entry.type === "round_end") {
+      cls += " event-round-break";
+    } else if (entry.type === "game_over") {
+      cls += " event-gameover";
+    } else if (entry.type === "system") {
+      cls += " event-system";
+    }
+
+    if (entry.playerIndex !== undefined && entry.playerIndex !== null && entry.type !== "round_end" && entry.type !== "game_over") {
+      var emoji = getPlayerEmoji(entry.playerIndex);
+      var color = getPlayerColor(entry.playerIndex);
+      msg = '<span style="color:' + color + ';">' + emoji + ' ' + msg + '</span>';
+    }
+
+    return '<div class="' + cls + '">' + msg + '</div>';
+  }
+
+  function addEvent(stateObj, playerIndex, type, message) {
+    if (!stateObj) return;
+    if (!stateObj.eventLog) {
+      stateObj.eventLog = [];
+    }
+    stateObj.eventLog.push({
+      round: stateObj.roundNumber || 1,
+      playerIndex: playerIndex,
+      type: type,
+      message: message
+    });
+
+    // 裁剪旧条目
+    if (stateObj.eventLog.length > MAX_EVENT_LOG_ENTRIES) {
+      stateObj.eventLog = stateObj.eventLog.slice(stateObj.eventLog.length - MAX_EVENT_LOG_ENTRIES);
+    }
+
+    renderEventLog();
+  }
+
+  // ============================================================================
+  // 动作按钮
+  // ============================================================================
+  function updateActionButtons() {
+    var stateObj = getState();
+    var btnDraw = $("btn-draw");
+    var btnPass = $("btn-pass");
+
+    if (!btnDraw || !btnPass) return;
+
+    // 默认隐藏
+    btnDraw.classList.add("hidden");
+    btnPass.classList.add("hidden");
+
+    if (!stateObj) return;
+
+    // 只有人类玩家回合才显示按钮
+    if (stateObj.currentPlayerIndex !== 0) return;
+
+    if (stateObj.phase === "waiting_human_drew_no_play") {
+      // 摸牌后没有可出的牌，显示 pass
+      btnPass.classList.remove("hidden");
+    } else if (stateObj.phase === "waiting_human") {
+      // 人类回合，检查是否有合法出牌
+      var legalMoves = stateObj.legalMoves;
+      if (!legalMoves || legalMoves.length === 0) {
+        // 没有合法出牌，显示摸牌按钮
+        btnDraw.classList.remove("hidden");
+      }
+      // 如果有合法出牌，不显示任何按钮（用户通过点击tile/train出牌）
+    }
+  }
+
+  // ============================================================================
+  // 高亮合法火车
+  // ============================================================================
+  function highlightLegalTrains(stateObj) {
+    // 这个方法的效果已集成在 renderBoard() 中
+    // 通过检查 stateObj.selectedTileIndex 和 stateObj.legalMoves 决定高亮
+    // 这里提供独立调用以便需要时刷新
+    if (!stateObj) stateObj = getState();
+    if (!stateObj) return;
+    renderBoard();
+  }
+
+  // ============================================================================
+  // 游戏主循环
+  // ============================================================================
+  function processNextTurn() {
+    var stateObj = getState();
+    if (!stateObj) return;
+
+    // 检查游戏是否已结束
+    if (stateObj.gameOver) return;
+
+    // 检查当前轮是否结束
+    if (DominoEngine.isRoundOver(stateObj)) {
+      DominoEngine.scoreRound(stateObj);
+      renderAll();
+
+      // 添加轮次结束事件
+      var roundPenalties = [];
+      for (var rp = 0; rp < stateObj.players.length; rp++) {
+        var pp = stateObj.players[rp];
+        var penalty = 0;
+        if (pp.hand && pp.hand.length > 0) {
+          for (var ph = 0; ph < pp.hand.length; ph++) {
+            penalty += DominoState.pips(pp.hand[ph]);
+          }
+        }
+        roundPenalties.push(pp.emoji + " " + pp.name + ": +" + penalty + "分");
+      }
+      addEvent(stateObj, null, "round_end",
+        "━━ 第" + stateObj.roundNumber + "轮结束 ━━ " + roundPenalties.join(" | "));
+
+      if (DominoEngine.isGameOver(stateObj)) {
+        var winner = DominoEngine.getWinner(stateObj);
+        if (winner) {
+          addEvent(stateObj, null, "game_over",
+            "&#x1F3C6; 游戏结束！胜者: " + winner.emoji + " " + winner.name);
+        }
+        showGameOver(stateObj);
+        return;
+      } else {
+        showRoundSummary(stateObj);
+        return;
+      }
+    }
+
+    // 检查当前玩家是否已出完所有牌（手牌为0），推进到下一玩家
+    var currentPlayer = stateObj.players[stateObj.currentPlayerIndex];
+    if (currentPlayer && currentPlayer.hand && currentPlayer.hand.length === 0) {
+      // 当前玩家已出完牌，推进
+      DominoEngine.advanceTurn(stateObj);
+      // 递归检查下一个
+      setTimeout(function() { processNextTurn(); }, 200);
+      return;
+    }
+
+    var currentPlayerIndex = stateObj.currentPlayerIndex;
+
+    if (currentPlayerIndex === 0) {
+      // 人类玩家回合
+      stateObj.phase = "waiting_human";
+      stateObj.legalMoves = DominoEngine.getLegalMoves(stateObj, 0);
+      renderAll();
+      return; // 等待用户输入
+    } else {
+      // AI 回合
+      stateObj.phase = "ai_thinking";
+      renderAll();
+
+      var delay = DominoAI.getThinkingDelay(stateObj, currentPlayerIndex);
+      var aiIndex = currentPlayerIndex;
+      setTimeout(function() {
+        processAITurn(stateObj, aiIndex);
+      }, delay);
+    }
+  }
+
+  // ============================================================================
+  // AI 回合处理
+  // ============================================================================
+  function processAITurn(stateObj, playerIndex) {
+    if (!stateObj) return;
+
+    var player = stateObj.players[playerIndex];
+    if (!player) return;
+
+    var move = DominoAI.selectMove(stateObj, playerIndex);
+
+    if (move) {
+      // AI 出牌
+      var result = DominoEngine.executePlay(stateObj, playerIndex, move.tileIndex, move.trainId);
+
+      // 确定上下文
+      var ctx = DominoAI.determineContext(stateObj, playerIndex, result);
+
+      // 更新情绪
+      DominoAI.updateMood(stateObj, playerIndex, ctx);
+
+      // 获取消息
+      var msg = DominoAI.selectMessage(stateObj, playerIndex, ctx);
+      if (msg) {
+        player.latestMessage = msg;
+      }
+
+      // 生成事件文本
+      var tile = result.tile;
+      var tileStr = tile ? (tile[0] + "|" + tile[1]) : "?";
+      var trainName = getTrainDisplayName(move.trainId, stateObj);
+      addEvent(stateObj, playerIndex, "play",
+        player.name + " 出了 [" + tileStr + "] → " + trainName);
+    } else {
+      // AI 无法出牌
+      if (stateObj.boneyard && stateObj.boneyard.length > 0) {
+        // 摸牌
+        var drawResult = DominoEngine.executeDraw(stateObj, playerIndex);
+        var dctx = DominoAI.determineContext(stateObj, playerIndex, drawResult);
+        DominoAI.updateMood(stateObj, playerIndex, dctx);
+        var dmsg = DominoAI.selectMessage(stateObj, playerIndex, dctx);
+        if (dmsg) {
+          player.latestMessage = dmsg;
+        }
+
+        if (drawResult && drawResult.tile) {
+          var dtile = drawResult.tile;
+          addEvent(stateObj, playerIndex, "draw",
+            player.name + " 摸了 [" + dtile[0] + "|" + dtile[1] + "]");
+        }
+        if (drawResult && drawResult.autoPlayed) {
+          var ap = drawResult.autoPlayed;
+          var trainName = getTrainDisplayName(ap.trainId, stateObj);
+          addEvent(stateObj, playerIndex, "play",
+            player.name + " 打出摸到的牌 [" + ap.tile[0] + "|" + ap.tile[1] + "] → " + trainName);
+        }
+      } else {
+        // 跳过
+        DominoEngine.executePass(stateObj, playerIndex);
+        var pctx = { action: "pass" };
+        DominoAI.updateMood(stateObj, playerIndex, pctx);
+        var pmsg = DominoAI.selectMessage(stateObj, playerIndex, pctx);
+        if (pmsg) {
+          player.latestMessage = pmsg;
+        }
+
+        addEvent(stateObj, playerIndex, "pass",
+          player.name + " 跳过回合，火车开放");
+      }
+    }
+
+    renderAll();
+
+    // 延迟后进入下一回合
+    setTimeout(function() {
+      processNextTurn();
+    }, 500);
+  }
+
+  // ============================================================================
+  // 游戏结束覆盖层
+  // ============================================================================
+  function showGameOver(stateObj) {
+    if (!stateObj) stateObj = getState();
+    if (!stateObj) return;
+
+    var winner = DominoEngine.getWinner(stateObj);
+    var overlay = $("overlay");
+    var content = $("overlay-content");
+    if (!overlay || !content) return;
+
+    overlay.classList.remove("hidden");
+
+    var winnerHTML = winner ?
+      (winner.emoji + " " + winner.name + " 获胜！") :
+      "游戏结束";
+
+    var html = '<h2>&#x1F3C6; ' + winnerHTML + '</h2>';
+
+    // 最终分数表
+    html += '<table>';
+    html += '<tr><th>玩家</th><th>最终总分</th></tr>';
+    var players = stateObj.players;
+    for (var i = 0; i < players.length; i++) {
+      var p = players[i];
+      var color = getPlayerColor(i);
+      html += '<tr>';
+      html += '<td style="color:' + color + ';">' + p.emoji + ' ' + p.name + '</td>';
+      html += '<td>' + (p.totalScore || 0) + '分</td>';
+      html += '</tr>';
+    }
+    html += '</table>';
+
+    html += '<button id="overlay-btn" data-action="new_game">&#x1F504; 再来一局</button>';
+    content.innerHTML = html;
+
+    stateObj.gameOver = true;
+    stateObj.winner = winner;
+  }
+
+  // ============================================================================
+  // 轮次总结覆盖层
+  // ============================================================================
+  function showRoundSummary(stateObj) {
+    if (!stateObj) stateObj = getState();
+    if (!stateObj) return;
+
+    var overlay = $("overlay");
+    var content = $("overlay-content");
+    if (!overlay || !content) return;
+
+    overlay.classList.remove("hidden");
+
+    var roundNum = stateObj.roundNumber;
+
+    var html = '<h2>第 ' + roundNum + ' 轮结束</h2>';
+
+    html += '<table>';
+    html += '<tr><th>玩家</th><th>本轮惩罚</th><th>累计总分</th></tr>';
+
+    var players = stateObj.players;
+    for (var i = 0; i < players.length; i++) {
+      var p = players[i];
+      var color = getPlayerColor(i);
+
+      // 本轮惩罚
+      var penalty = 0;
+      if (p.hand && p.hand.length > 0) {
+        for (var h = 0; h < p.hand.length; h++) {
+          penalty += DominoState.pips(p.hand[h]);
+        }
+      }
+
+      html += '<tr>';
+      html += '<td style="color:' + color + ';">' + p.emoji + ' ' + p.name + '</td>';
+      html += '<td>+' + penalty + '分</td>';
+      html += '<td>' + (p.totalScore || 0) + '分</td>';
+      html += '</tr>';
+    }
+    html += '</table>';
+
+    html += '<button id="overlay-btn" data-action="next_round">&#x25B6; 下一轮</button>';
+    content.innerHTML = html;
+  }
+
+  // ============================================================================
+  // 覆盖层动作处理
+  // ============================================================================
+  function handleNewGame() {
+    var overlay = $("overlay");
+    if (overlay) overlay.classList.add("hidden");
+
+    DominoApp.state = DominoState.initNewGame();
+    DominoEngine.initRound(DominoApp.state);
+    renderAll();
+    processNextTurn();
+  }
+
+  function handleNextRound() {
+    var overlay = $("overlay");
+    if (overlay) overlay.classList.add("hidden");
+
+    var stateObj = getState();
+    if (!stateObj) return;
+
+    DominoEngine.initRound(stateObj);
+    renderAll();
+    processNextTurn();
+  }
+
+  // ============================================================================
+  // 火车显示名称
+  // ============================================================================
+  function getTrainDisplayName(trainId, stateObj) {
+    if (trainId === "mexican") return "&#x1F1F2;&#x1F1FD; 墨西哥火车";
+    if (trainId === "p0") return "&#x1F682; 你的火车";
+    if (trainId === "p1") return "&#x1F422; 老稳的火车";
+    if (trainId === "p2") return "&#x1F525; 小冲的火车";
+    if (trainId === "p3") return "&#x1F3AD; 大悲大喜的火车";
+
+    // 回退：尝试从配置中获取
+    if (trainId && trainId.length >= 2) {
+      var idx = parseInt(trainId.charAt(1), 10);
+      if (!isNaN(idx)) {
+        var name = getPlayerName(idx);
+        var emoji = getPlayerEmoji(idx);
+        return emoji + " " + name + "的火车";
+      }
+    }
+
+    return trainId;
+  }
+
+  // ============================================================================
+  // 工具
+  // ============================================================================
+  function escapeHTML(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  // ============================================================================
+  // 公开 API
+  // ============================================================================
+  return {
+    init: init,
+    renderAll: renderAll,
+    renderScores: renderScores,
+    renderBoard: renderBoard,
+    renderHand: renderHand,
+    renderTileElement: renderTileElement,
+    renderAICards: renderAICards,
+    renderEventLog: renderEventLog,
+    addEvent: addEvent,
+    updateActionButtons: updateActionButtons,
+    highlightLegalTrains: highlightLegalTrains,
+    processNextTurn: processNextTurn,
+    processAITurn: processAITurn,
+    showGameOver: showGameOver,
+    showRoundSummary: showRoundSummary,
+    getTrainDisplayName: getTrainDisplayName,
+    handleNewGame: handleNewGame,
+    handleNextRound: handleNextRound
+  };
+
+})();
+</script>
+<script>
+DominoUI.init();
+</script>
+</body>
+</html>
