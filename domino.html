@@ -2548,7 +2548,7 @@ var DominoUI = (function() {
         }
 
         renderAll();
-        setTimeout(function() { processNextTurn(); }, 300);
+        setTimeout(function() { DominoEngine.advanceTurn(stateObj); processNextTurn(); }, 300);
       });
     }
 
@@ -2582,7 +2582,7 @@ var DominoUI = (function() {
         }
 
         renderAll();
-        setTimeout(function() { processNextTurn(); }, 300);
+        setTimeout(function() { DominoEngine.advanceTurn(stateObj); processNextTurn(); }, 300);
       });
     }
 
@@ -2598,7 +2598,7 @@ var DominoUI = (function() {
         addEvent(stateObj, 0, "pass", "你 跳过回合，火车开放");
 
         renderAll();
-        setTimeout(function() { processNextTurn(); }, 300);
+        setTimeout(function() { DominoEngine.advanceTurn(stateObj); processNextTurn(); }, 300);
       });
     }
 
@@ -3186,6 +3186,7 @@ var DominoUI = (function() {
 
     // 延迟后进入下一回合
     setTimeout(function() {
+      DominoEngine.advanceTurn(stateObj);
       processNextTurn();
     }, 500);
   }
