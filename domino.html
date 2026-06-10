@@ -1373,7 +1373,7 @@ var DominoAI = (function() {
    * @returns {number} 综合得分
    */
   function scoreMove(stateObj, playerIndex, move, weights) {
-    var hand = stateObj.hands[playerIndex];
+    var hand = stateObj.players[playerIndex].hand;
     var tile = move.tile;
     var trainId = move.trainId;
     var handSizeBefore = hand.length;
@@ -1417,7 +1417,7 @@ var DominoAI = (function() {
     var d3_block = 0.0;
     var ownerIdx = _trainOwnerIndex(trainId);
     if (ownerIdx >= 0 && ownerIdx !== playerIndex) {
-      var otherHandSize = stateObj.hands[ownerIdx] ? stateObj.hands[ownerIdx].length : 10;
+      var otherHandSize = stateObj.players[ownerIdx] ? stateObj.players[ownerIdx].hand.length : 10;
       d3_block = 0.5 + (otherHandSize <= 3 ? 0.5 : 0.0);
     }
 
@@ -1606,7 +1606,7 @@ var DominoAI = (function() {
    * @returns {string} 情景标签
    */
   function determineContext(stateObj, playerIndex, actionResult) {
-    var hand = stateObj.hands[playerIndex];
+    var hand = stateObj.players[playerIndex].hand;
     var handSize = hand ? hand.length : 0;
 
     // 赢得本局（手牌清空）
@@ -2540,7 +2540,7 @@ var DominoUI = (function() {
         var result = DominoEngine.executePlay(stateObj, 0, stateObj.selectedTileIndex, trainId);
         stateObj.selectedTileIndex = null;
 
-        if (result && result.success) {
+        if (result) {
           var tile = result.tile;
           var tileStr = tile[0] + "|" + tile[1];
           var trainName = getTrainDisplayName(trainId, stateObj);
@@ -2562,26 +2562,22 @@ var DominoUI = (function() {
 
         var result = DominoEngine.executeDraw(stateObj, 0);
 
-        if (result && result.success) {
-          if (result.tile) {
-            var tile = result.tile;
-            var tileStr = tile[0] + "|" + tile[1];
-            addEvent(stateObj, 0, "draw", "你 摸了 [" + tileStr + "]");
+        if (result) {
+          var tile = result.tile;
+          var tileStr = tile[0] + "|" + tile[1];
+          addEvent(stateObj, 0, "draw", "你 摸了 [" + tileStr + "]");
 
-            // 检查摸到的牌能否打出
+          if (result.played) {
+            // 自动打出了
+            var trainName = getTrainDisplayName(result.trainId, stateObj);
+            addEvent(stateObj, 0, "play",
+              "你 打出摸到的牌 [" + tileStr + "] → " + trainName);
+          } else {
+            // 不能打出，检查是否有合法出牌
             var legalMoves = DominoEngine.getLegalMoves(stateObj, 0);
             if (!legalMoves || legalMoves.length === 0) {
-              // 不能打出，显示 pass 按钮
               stateObj.phase = "waiting_human_drew_no_play";
-            } else {
-              // 自动打出了
-              addEvent(stateObj, 0, "play", "你 打出摸到的牌 [" + tileStr + "]");
             }
-          } else if (result.autoPlayed) {
-            var atile = result.autoPlayed.tile;
-            var trainName = getTrainDisplayName(result.autoPlayed.trainId, stateObj);
-            addEvent(stateObj, 0, "play",
-              "你 打出摸到的牌 [" + atile[0] + "|" + atile[1] + "] → " + trainName);
           }
         }
 
@@ -3166,11 +3162,10 @@ var DominoUI = (function() {
           addEvent(stateObj, playerIndex, "draw",
             player.name + " 摸了 [" + dtile[0] + "|" + dtile[1] + "]");
         }
-        if (drawResult && drawResult.autoPlayed) {
-          var ap = drawResult.autoPlayed;
-          var trainName = getTrainDisplayName(ap.trainId, stateObj);
+        if (drawResult && drawResult.played) {
+          var trainName = getTrainDisplayName(drawResult.trainId, stateObj);
           addEvent(stateObj, playerIndex, "play",
-            player.name + " 打出摸到的牌 [" + ap.tile[0] + "|" + ap.tile[1] + "] → " + trainName);
+            player.name + " 打出摸到的牌 [" + drawResult.tile[0] + "|" + drawResult.tile[1] + "] → " + trainName);
         }
       } else {
         // 跳过
@@ -3301,6 +3296,7 @@ var DominoUI = (function() {
     var stateObj = getState();
     if (!stateObj) return;
 
+    stateObj.roundNumber += 1;
     DominoEngine.initRound(stateObj);
     renderAll();
     processNextTurn();
