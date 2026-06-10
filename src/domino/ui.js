@@ -1,5 +1,6 @@
 // file: src/domino/ui.js
 // 墨西哥火车多米诺 — 完整 UI 渲染与游戏循环模块
+// Synced from domino.html on 2026-06-10
 
 var DominoUI = (function() {
   "use strict";
@@ -641,27 +642,89 @@ var DominoUI = (function() {
 
     // 3. 设置事件监听
     setupEventListeners();
+    setupMenuListeners();
 
-    // 4. 初始化游戏
-    DominoApp.state = DominoState.initNewGame();
-    DominoEngine.initRound(DominoApp.state);
-
-    // 5. 渲染全部
-    renderAll();
-
-    // 6. 启动游戏循环
-    processNextTurn();
+    // 4. 显示主菜单
+    showMainMenu();
   }
 
   // ============================================================================
   // DOM 结构创建
   // ============================================================================
   function createDOMStructure() {
+    // --- 主菜单 ---
+    var menu = document.createElement("div");
+    menu.id = "main-menu";
+    menu.innerHTML = [
+      '<div class="menu-title">&#x1F004; 墨西哥火车多米诺</div>',
+      '<div class="menu-subtitle">AI 拟人化玩家体验</div>',
+      '<div class="menu-cards">',
+      '  <div class="menu-card" data-mode="standard">',
+      '    <div class="menu-card-icon">&#x1F3C6;</div>',
+      '    <div class="menu-card-title">AI 对手模式</div>',
+      '    <div class="menu-card-desc">标准4人对局，对抗3个性格各异的AI对手。体验稳健型、冒险型和情绪型玩家的不同策略。</div>',
+      '    <div class="menu-card-btn">&#x25B6; 开始对局</div>',
+      '  </div>',
+      '  <div class="menu-card" data-mode="coach">',
+      '    <div class="menu-card-icon">&#x1F468;&#x200D;&#x1F3EB;</div>',
+      '    <div class="menu-card-title">AI 陪练模式</div>',
+      '    <div class="menu-card-desc">1v1 对局，AI教练会解释每一步的决策原因。适合新手学习多米诺策略。</div>',
+      '    <div class="menu-card-btn">&#x25B6; 开始学习</div>',
+      '  </div>',
+      '  <div class="menu-card" data-mode="spectator">',
+      '    <div class="menu-card-icon">&#x1F440;</div>',
+      '    <div class="menu-card-title">AI 风格观察模式</div>',
+      '    <div class="menu-card-desc">3个AI互相较量，人类旁观学习。观察不同性格AI的决策差异。</div>',
+      '    <div class="menu-card-btn">&#x25B6; 开始观战</div>',
+      '  </div>',
+      '</div>',
+      '<button class="menu-rules-btn" id="menu-rules-btn">&#x1F4D6; 规则介绍</button>'
+    ].join("\n");
+    document.body.appendChild(menu);
+
+    // --- 规则覆盖层 ---
+    var rulesOverlay = document.createElement("div");
+    rulesOverlay.id = "rules-overlay";
+    rulesOverlay.className = "hidden";
+    rulesOverlay.innerHTML = [
+      '<div id="rules-content">',
+      '  <h2>&#x1F4D6; 规则介绍</h2>',
+      '  <h3>&#x1F3AF; 多米诺基本规则</h3>',
+      '  <p>多米诺骨牌使用一套 Double-9 骨牌，共 55 张。每张牌有两个端点，每个端点的数字从 0 到 9。</p>',
+      '  <ul>',
+      '    <li>出牌时必须匹配火车的开放端数字</li>',
+      '    <li>匹配后，牌的另一个端点成为新的开放端</li>',
+      '    <li>双牌（两端数字相同）打出后可获得额外回合</li>',
+      '    <li>打出的双牌必须被"满足"——即后续出一张匹配该双牌数字的牌</li>',
+      '    <li>在双牌被满足前，其他火车被"锁定"（只能由双牌玩家操作）</li>',
+      '  </ul>',
+      '  <h3>&#x1F1F2;&#x1F1FD; 墨西哥火车特殊规则</h3>',
+      '  <ul>',
+      '    <li>场上有多条火车：每个玩家有自己的个人火车，还有一条公用的墨西哥火车</li>',
+      '    <li>你可以在自己的火车、墨西哥火车、或他人已开放的火车上出牌</li>',
+      '    <li>无法出牌时可以摸牌：摸到能出的牌必须出，不能出则你的火车变为"开放"</li>',
+      '    <li>当有人清空手牌时，该轮结束。其他人手牌点数之和即为惩罚分</li>',
+      '    <li>累计分达到 100 分时游戏结束，最低分者获胜</li>',
+      '  </ul>',
+      '  <h3>&#x1F916; AI 角色介绍</h3>',
+      '  <p><b>&#x1F422; 老稳（保守型）</b> — 稳健派，优先出在自己火车上，避免风险，注重长期规划。</p>',
+      '  <p><b>&#x1F525; 小冲（冒险型）</b> — 激进派，喜欢封锁对手、出双牌、清空手牌，追求速胜。</p>',
+      '  <p><b>&#x1F3AD; 大悲大喜（情绪型）</b> — 情绪驱动的玩家，决策受心情影响，时而稳健时而冒险，个性鲜明。</p>',
+      '  <p><b>&#x1F468;&#x200D;&#x1F3EB; 教练（陪练模式）</b> — 教学型AI，会解释每一步的决策原因，帮助新手理解游戏策略。</p>',
+      '  <button id="rules-close-btn">&#x2705; 我知道了</button>',
+      '</div>'
+    ].join("\n");
+    document.body.appendChild(rulesOverlay);
+
+    // --- 游戏容器（初始隐藏）---
     var container = document.createElement("div");
     container.id = "game-container";
+    container.className = "hidden";
     container.innerHTML = [
       '<div id="header">',
+      '  <button class="back-to-menu-btn" id="back-to-menu-btn">&#x2190; 返回菜单</button>',
       '  <h1>&#x1F004; 墨西哥火车多米诺</h1>',
+      '  <span id="mode-badge" class="spectator-badge"></span>',
       '  <span id="round-info">第 1 轮</span>',
       '  <span id="target-info">目标: ' + DominoConfig.TARGET_SCORE + '分</span>',
       '</div>',
@@ -673,6 +736,7 @@ var DominoUI = (function() {
       '  </div>',
       '</div>',
       '<div id="ai-cards"></div>',
+      '<div id="coach-tips" class="hidden"></div>',
       '<div id="event-log"></div>',
       '<div id="hand-area">',
       '  <div id="hand-area-label">你的手牌</div>',
@@ -743,7 +807,7 @@ var DominoUI = (function() {
         var result = DominoEngine.executePlay(stateObj, 0, stateObj.selectedTileIndex, trainId);
         stateObj.selectedTileIndex = null;
 
-        if (result && result.success) {
+        if (result) {
           var tile = result.tile;
           var tileStr = tile[0] + "|" + tile[1];
           var trainName = getTrainDisplayName(trainId, stateObj);
@@ -751,7 +815,7 @@ var DominoUI = (function() {
         }
 
         renderAll();
-        setTimeout(function() { processNextTurn(); }, 300);
+        setTimeout(function() { DominoEngine.advanceTurn(stateObj); processNextTurn(); }, 300);
       });
     }
 
@@ -765,31 +829,31 @@ var DominoUI = (function() {
 
         var result = DominoEngine.executeDraw(stateObj, 0);
 
-        if (result && result.success) {
-          if (result.tile) {
-            var tile = result.tile;
-            var tileStr = tile[0] + "|" + tile[1];
-            addEvent(stateObj, 0, "draw", "你 摸了 [" + tileStr + "]");
+        if (result) {
+          var tile = result.tile;
+          var tileStr = tile[0] + "|" + tile[1];
+          addEvent(stateObj, 0, "draw", "你 摸了 [" + tileStr + "]");
 
-            // 检查摸到的牌能否打出
-            var legalMoves = DominoEngine.getLegalMoves(stateObj, 0);
-            if (!legalMoves || legalMoves.length === 0) {
-              // 不能打出，显示 pass 按钮
-              stateObj.phase = "waiting_human_drew_no_play";
-            } else {
-              // 自动打出了
-              addEvent(stateObj, 0, "play", "你 打出摸到的牌 [" + tileStr + "]");
-            }
-          } else if (result.autoPlayed) {
-            var atile = result.autoPlayed.tile;
-            var trainName = getTrainDisplayName(result.autoPlayed.trainId, stateObj);
+          if (result.played) {
+            // 自动打出了
+            var trainName = getTrainDisplayName(result.trainId, stateObj);
             addEvent(stateObj, 0, "play",
-              "你 打出摸到的牌 [" + atile[0] + "|" + atile[1] + "] → " + trainName);
+              "你 打出摸到的牌 [" + tileStr + "] → " + trainName);
+          } else {
+            // 不能打出，检查是否有合法出牌
+            var legalMoves2 = DominoEngine.getLegalMoves(stateObj, 0);
+            if (!legalMoves2 || legalMoves2.length === 0) {
+              stateObj.phase = "waiting_human_drew_no_play";
+            }
           }
+        } else {
+          // Boneyard empty — auto-pass
+          DominoEngine.executePass(stateObj, 0);
+          addEvent(stateObj, 0, "pass", "你 跳过回合（牌堆已空），火车开放");
         }
 
         renderAll();
-        setTimeout(function() { processNextTurn(); }, 300);
+        setTimeout(function() { DominoEngine.advanceTurn(stateObj); processNextTurn(); }, 300);
       });
     }
 
@@ -805,7 +869,7 @@ var DominoUI = (function() {
         addEvent(stateObj, 0, "pass", "你 跳过回合，火车开放");
 
         renderAll();
-        setTimeout(function() { processNextTurn(); }, 300);
+        setTimeout(function() { DominoEngine.advanceTurn(stateObj); processNextTurn(); }, 300);
       });
     }
 
@@ -918,7 +982,7 @@ var DominoUI = (function() {
     // 引擎显示
     var engineDisplay = $("engine-display");
     if (engineDisplay) {
-      engineDisplay.innerHTML = '<span class="engine-badge">🀄 引擎: ' +
+      engineDisplay.innerHTML = '<span class="engine-badge">&#x1F004; 引擎: ' +
         (stateObj.engineValue !== null ? stateObj.engineValue : "—") + '</span>';
     }
 
@@ -964,12 +1028,12 @@ var DominoUI = (function() {
 
       // 徽章
       if (train.isPublic) {
-        html += '<span class="train-badge" style="background:rgba(255,255,255,0.12);">🔓 开放</span>';
+        html += '<span class="train-badge" style="background:rgba(255,255,255,0.12);">&#x1F513; 开放</span>';
       }
 
       // 未满足双牌警告
       if (train.hasUnsatisfiedDouble && train.unsatisfiedDoubleValue !== null) {
-        html += '<span class="train-badge" style="background:rgba(255,100,100,0.2);color:#ff6b6b;">⚠️ 需满足双' + train.unsatisfiedDoubleValue + '</span>';
+        html += '<span class="train-badge" style="background:rgba(255,100,100,0.2);color:#ff6b6b;">&#x26A0;&#xFE0F; 需满足双' + train.unsatisfiedDoubleValue + '</span>';
       }
 
       // 开放标记（自己的火车当不能出牌时）
@@ -979,7 +1043,7 @@ var DominoUI = (function() {
         // 此标记由 advanceTurn 或 pass 逻辑处理，我们检查 train.isPublic
       }
       if (tid === "p0" && train.isPublic && stateObj.currentPlayerIndex !== 0) {
-        html += '<span class="train-badge" style="background:rgba(102,187,106,0.2);color:#66bb6a;">🔓 开放</span>';
+        html += '<span class="train-badge" style="background:rgba(102,187,106,0.2);color:#66bb6a;">&#x1F513; 开放</span>';
       }
 
       // 牌
@@ -1119,7 +1183,7 @@ var DominoUI = (function() {
       }
 
       // 手牌数
-      html += '<div class="ai-card-hand">🃏 ×' + (player.hand ? player.hand.length : 0) + '</div>';
+      html += '<div class="ai-card-hand">&#x1F0CF; ×' + (player.hand ? player.hand.length : 0) + '</div>';
 
       // 思考中 / 消息
       if (isThinking) {
@@ -1278,7 +1342,7 @@ var DominoUI = (function() {
         var winner = DominoEngine.getWinner(stateObj);
         if (winner) {
           addEvent(stateObj, null, "game_over",
-            "🏆 游戏结束！胜者: " + winner.emoji + " " + winner.name);
+            "&#x1F3C6; 游戏结束！胜者: " + winner.emoji + " " + winner.name);
         }
         showGameOver(stateObj);
         return;
@@ -1369,11 +1433,10 @@ var DominoUI = (function() {
           addEvent(stateObj, playerIndex, "draw",
             player.name + " 摸了 [" + dtile[0] + "|" + dtile[1] + "]");
         }
-        if (drawResult && drawResult.autoPlayed) {
-          var ap = drawResult.autoPlayed;
-          var trainName = getTrainDisplayName(ap.trainId, stateObj);
+        if (drawResult && drawResult.played) {
+          var trainName = getTrainDisplayName(drawResult.trainId, stateObj);
           addEvent(stateObj, playerIndex, "play",
-            player.name + " 打出摸到的牌 [" + ap.tile[0] + "|" + ap.tile[1] + "] → " + trainName);
+            player.name + " 打出摸到的牌 [" + drawResult.tile[0] + "|" + drawResult.tile[1] + "] → " + trainName);
         }
       } else {
         // 跳过
@@ -1394,6 +1457,7 @@ var DominoUI = (function() {
 
     // 延迟后进入下一回合
     setTimeout(function() {
+      DominoEngine.advanceTurn(stateObj);
       processNextTurn();
     }, 500);
   }
@@ -1416,7 +1480,7 @@ var DominoUI = (function() {
       (winner.emoji + " " + winner.name + " 获胜！") :
       "游戏结束";
 
-    var html = '<h2>🏆 ' + winnerHTML + '</h2>';
+    var html = '<h2>&#x1F3C6; ' + winnerHTML + '</h2>';
 
     // 最终分数表
     html += '<table>';
@@ -1432,7 +1496,7 @@ var DominoUI = (function() {
     }
     html += '</table>';
 
-    html += '<button id="overlay-btn" data-action="new_game">🔄 再来一局</button>';
+    html += '<button id="overlay-btn" data-action="new_game">&#x1F504; 再来一局</button>';
     content.innerHTML = html;
 
     stateObj.gameOver = true;
@@ -1480,7 +1544,7 @@ var DominoUI = (function() {
     }
     html += '</table>';
 
-    html += '<button id="overlay-btn" data-action="next_round">▶ 下一轮</button>';
+    html += '<button id="overlay-btn" data-action="next_round">&#x25B6; 下一轮</button>';
     content.innerHTML = html;
   }
 
@@ -1504,6 +1568,7 @@ var DominoUI = (function() {
     var stateObj = getState();
     if (!stateObj) return;
 
+    stateObj.roundNumber += 1;
     DominoEngine.initRound(stateObj);
     renderAll();
     processNextTurn();
@@ -1513,11 +1578,11 @@ var DominoUI = (function() {
   // 火车显示名称
   // ============================================================================
   function getTrainDisplayName(trainId, stateObj) {
-    if (trainId === "mexican") return "🇲🇽 墨西哥火车";
-    if (trainId === "p0") return "🚂 你的火车";
-    if (trainId === "p1") return "🐢 老稳的火车";
-    if (trainId === "p2") return "🔥 小冲的火车";
-    if (trainId === "p3") return "🎭 大悲大喜的火车";
+    if (trainId === "mexican") return "&#x1F1F2;&#x1F1FD; 墨西哥火车";
+    if (trainId === "p0") return "&#x1F682; 你的火车";
+    if (trainId === "p1") return "&#x1F422; 老稳的火车";
+    if (trainId === "p2") return "&#x1F525; 小冲的火车";
+    if (trainId === "p3") return "&#x1F3AD; 大悲大喜的火车";
 
     // 回退：尝试从配置中获取
     if (trainId && trainId.length >= 2) {
