@@ -579,7 +579,7 @@ var DominoState = (function() {
   /** 返回骨牌中不匹配 matchValue 的另一端值；
    *  如果两端都匹配，返回 —1；如果都不匹配，返回 —1。 */
   function otherEnd(tile, matchValue) {
-    if (tile[0] === matchValue && tile[1] === matchValue) return -1;
+    if (tile[0] === matchValue && tile[1] === matchValue) return tile[0];
     if (tile[0] === matchValue) return tile[1];
     if (tile[1] === matchValue) return tile[0];
     return -1;
