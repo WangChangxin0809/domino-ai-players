@@ -442,7 +442,39 @@ const DominoConfig = (function() {
   var thinkDelays = {
     conservative: { min: 800, max: 1500 },
     aggressive: { min: 400, max: 800 },
-    emotional: { min: 600, max: 1200 }
+    emotional: { min: 600, max: 1200 },
+    coach: { min: 1000, max: 2000 }
+  };
+
+  // --- 教练型权重 (教学型AI，偏好解释性出牌) ---
+  var coachWeights = {
+    d1_ownTrain: 0.25,
+    d2_mexican: 0.15,
+    d3_block: 0.10,
+    d4_pipRisk: 0.20,
+    d5_diversity: 0.15,
+    d6_empty: 0.05,
+    d7_double: 0.05,
+    d8_selfBlock: 0.05
+  };
+
+  // --- 教练型消息 ---
+  var coachMessages = {
+    on_good_play: [
+      "这张牌选得不错，平衡了风险和收益。",
+      "出在这里是正确的选择。",
+      "很好的判断！"
+    ],
+    on_draw: ["摸牌是获取新选择的好方法。", "试试手气。", "看看能摸到什么。"],
+    on_pass: ["有时跳过也是一种策略。", "耐心等待机会。"],
+    on_double: ["双牌需要谨慎处理。", "双牌给了你额外的回合。"],
+    on_block_other: ["堵住对手的火车是有效的战术。", "有时候防守就是最好的进攻。"],
+    on_blocked: ["当你被堵住时，保持冷静，寻找其他出路。", "试试墨西哥火车。"],
+    on_win_round: ["本轮表现不错！", "继续保持！"],
+    on_lose_round: ["输一轮没关系，积累经验。", "从失败中学习。"],
+    on_near_victory: ["快赢了，稳住！", "最后关头不要急躁。"],
+    on_draw_useful: ["摸到了有用的牌！", "运气不错！"],
+    on_draw_useless: ["摸到的牌暂时用不上。", "没关系，增加了手牌选择。"]
   };
 
   var PERSONALITIES = {
@@ -470,6 +502,14 @@ const DominoConfig = (function() {
       weightsBase: emotionalWeightsBase,
       moodSensitivities: emotionalMoodSensitivities,
       messagePools: emotionalMessages
+    },
+    coach: {
+      id: "coach",
+      name: "教练型",
+      emoji: "👨‍🏫",
+      thinkDelay: thinkDelays.coach,
+      weights: coachWeights,
+      messagePools: coachMessages
     }
   };
 
@@ -516,6 +556,30 @@ const DominoConfig = (function() {
     ALL_TRAINS: ["p0", "p1", "p2", "p3", "mexican"]
   };
 
+  var GAME_MODES = {
+    standard: {
+      name: "AI 对手模式", icon: "🏆",
+      players: PLAYERS, playerCount: 4, humanPlayerIndex: 0
+    },
+    coach: {
+      name: "AI 陪练模式", icon: "👨‍🏫",
+      players: [
+        { index: 0, name: "你", type: "human", personality: "human", emoji: "🧑", color: "#4fc3f7" },
+        { index: 1, name: "教练", type: "ai", personality: "coach", emoji: "👨‍🏫", color: "#81c784" }
+      ],
+      playerCount: 2, humanPlayerIndex: 0
+    },
+    spectator: {
+      name: "AI 风格观察", icon: "👀",
+      players: [
+        { index: 0, name: "老稳", type: "ai", personality: "conservative", emoji: "🐢", color: "#81c784" },
+        { index: 1, name: "小冲", type: "ai", personality: "aggressive", emoji: "🔥", color: "#e57373" },
+        { index: 2, name: "大悲大喜", type: "ai", personality: "emotional", emoji: "🎭", color: "#ffb74d" }
+      ],
+      playerCount: 3, humanPlayerIndex: -1
+    }
+  };
+
   // ============================================================================
   // 公开 API
   // ============================================================================
@@ -537,7 +601,8 @@ const DominoConfig = (function() {
     PERSONALITIES: PERSONALITIES,
     MOOD_DELTAS: MOOD_DELTAS,
     MOOD_EMOJI_MAP: MOOD_EMOJI_MAP,
-    TRAIN_IDS: TRAIN_IDS
+    TRAIN_IDS: TRAIN_IDS,
+    GAME_MODES: GAME_MODES
   };
 
 })();
